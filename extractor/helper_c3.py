@@ -106,12 +106,12 @@ class DisplayObjectPositionHeader(DataBytesInterpreter):
 
     QUANTIZE_INFO={
         "size info":{
-            0x0:2,
-            0x1:4,
-            0x2:2,
-            0x3:2,
-            0x4:1,
-            0x5:1
+            0x0:2, # presumably unshifted
+            0x1:4, # float
+            0x2:2, # u16
+            0x3:2, # s16
+            0x4:1, # u8
+            0x5:1 # s8
         },
         "signed info":{
             0x0:False,
@@ -195,12 +195,12 @@ class DisplayObjectTextureHeader(DataBytesInterpreter):
 
     QUANTIZE_INFO={
         "size info":{
-            0x0:2,
-            0x1:4,
-            0x2:2,
-            0x3:2,
-            0x4:1,
-            0x5:1
+            0x0:2, # presumably unshifted
+            0x1:4, # float
+            0x2:2, # u16
+            0x3:2, # s16
+            0x4:1, # u8
+            0x5:1 # s8
         },
         "signed info":{
             0x0:False,
@@ -282,12 +282,12 @@ class DisplayObjectLightingHeader(DataBytesInterpreter):
 
     QUANTIZE_INFO={
         "size info":{
-            0x0:2,
-            0x1:4,
-            0x2:2,
-            0x3:2,
-            0x4:1,
-            0x5:1
+            0x0:2, # presumably unshifted
+            0x1:4, # float
+            0x2:2, # u16
+            0x3:2, # s16
+            0x4:1, # u8
+            0x5:1 # s8
         },
         "signed info":{
             0x0:False,
