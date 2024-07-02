@@ -3,7 +3,7 @@ from os.path import join, exists
 from os import rename
 from run_extract_Texture import export_images
 from run_extract_Model import export_model
-from run_file_discovery import discover_US_files, discover_beta_files, discover_JP_files, discover_EU_files
+from run_file_discovery import discover_US_files, discover_beta_files, discover_JP_files, discover_EU_files, discover_family_files
 import json, progressbar
 from run_draw_pic import draw_pic
 from helper_file_system import *
@@ -11,6 +11,8 @@ from helper_file_system import *
 def interpret_bytes(b:bytearray, output_folder:str):
     parts_of_file = get_parts_of_file(b)
     output_text = f"{len(parts_of_file)} {'part' if len(parts_of_file) == 1 else 'parts'} of file.\n"
+    offsets_text = "Offsets of parts: " + ", ".join([hex(offset) for offset in parts_of_file]) + "\n"
+    output_text += offsets_text
 
     # interpret the files as a file, not parts of a file
     any_outputs = False
@@ -54,13 +56,17 @@ def interpret_EU():
 def interpret_BETA():
     print('Looking at Beta files...')
     return interpret_version(BETA_OUTPUT_FOLDER, BETA_RESULTS_FILE, BETA_ZZZZ_FILE, discover_beta_files, BETA_CUSTOM_FILENAMES)
+def interpret_family():
+    print('Looking at family files...')
+    return interpret_version(FAMILY_OUTPUT_FOLDER, FAMILY_RESULTS_FILE, FAMILY_ZZZZ_FILE, discover_family_files, FAMILY_CUSTOM_FILENAMES)
 
 def main():
     interpret_US()
     interpret_JP()
     interpret_EU()
     interpret_BETA()
-
+    interpret_family()
+    
 def interpret_version(output_folder:str, results_path:str, zzzz_file:str, discovery_method, file_name_path:str):
     REFERENCED_FOLDER = join(output_folder, 'Referenced files')
     UNREFERENCED_FOLDER = join(output_folder, 'Unreferenced files')

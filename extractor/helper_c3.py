@@ -106,6 +106,7 @@ class DisplayObjectPositionHeader(DataBytesInterpreter):
 
     QUANTIZE_INFO={
         "size info":{
+            0x0:2,
             0x1:4,
             0x2:2,
             0x3:2,
@@ -113,6 +114,7 @@ class DisplayObjectPositionHeader(DataBytesInterpreter):
             0x5:1
         },
         "signed info":{
+            0x0:False,
             0x1:True,
             0x2:False,
             0x3:True,
@@ -193,6 +195,7 @@ class DisplayObjectTextureHeader(DataBytesInterpreter):
 
     QUANTIZE_INFO={
         "size info":{
+            0x0:2,
             0x1:4,
             0x2:2,
             0x3:2,
@@ -200,6 +203,7 @@ class DisplayObjectTextureHeader(DataBytesInterpreter):
             0x5:1
         },
         "signed info":{
+            0x0:False,
             0x1:True,
             0x2:False,
             0x3:True,
@@ -278,6 +282,7 @@ class DisplayObjectLightingHeader(DataBytesInterpreter):
 
     QUANTIZE_INFO={
         "size info":{
+            0x0:2,
             0x1:4,
             0x2:2,
             0x3:2,
@@ -285,6 +290,7 @@ class DisplayObjectLightingHeader(DataBytesInterpreter):
             0x5:1
         },
         "signed info":{
+            0x0:False,
             0x1:True,
             0x2:False,
             0x3:True,

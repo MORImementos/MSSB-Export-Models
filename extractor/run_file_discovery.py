@@ -104,6 +104,10 @@ def discover_EU_files():
 def discover_beta_files():
     return discover_files(BETA_MAIN_FILE, BETA_AAAA_FILE, BETA_ZZZZ_FILE, BETA_OUTPUT_FOLDER, [], [], BETA_RESULTS_FILE)
 
+# add (some support for Family Stadium 03. So far it seems to work with stadiums for the most part, at least.)
+def discover_family_files():
+    return discover_files(FAMILY_MAIN_FILE, FAMILY_AAAA_FILE, FAMILY_ZZZZ_FILE, FAMILY_OUTPUT_FOLDER, [], [], FAMILY_RESULTS_FILE)
+
 
 def discover_files(this_main: str, this_aaaa: str, this_zzzz: str, this_output_folder: str, this_verified_raw_files:list[DataEntry], this_verified_compressed_files:list[DataEntry], output_file: str):
     if any([not exists(x) for x in [this_zzzz, this_aaaa, this_main]]):

@@ -9,7 +9,9 @@ from helper_mssb_data import get_parts_of_file, float_from_fixedpoint
 def main():
     file_name = input("Input file name: ")
     part_of_file = int(input("Input part of file: "))
-    export_model(file_name, dirname(file_name), part_of_file)
+    with open(file_name, 'rb') as f:
+        file_bytes = f.read()
+    export_model(file_bytes, dirname(file_name), part_of_file)
 
 def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, mtl_header:str = ""):
 
@@ -17,6 +19,8 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
 
     base_gpl_address = parts_of_file[part_of_file]
     geo_header = GeoPaletteHeader(file_bytes, base_gpl_address)
+    print(geo_header)
+    print(hex(base_gpl_address))
     geo_header.add_offset(base_gpl_address)
     
     descriptors:list[GeoDescriptor] = []
