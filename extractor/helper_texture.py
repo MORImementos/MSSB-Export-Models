@@ -169,6 +169,23 @@ class TPLColorRGB5A3(TPLColor):
         else:
             return cls.data[0] << 4 | cls.data[1] | cls.data[2] >> 4 | cls.data[3] << 7
 
+class TPLFileI4:
+    pass
+
+class TPLFileI8:
+    pass
+
+class TPLFileIA4:
+    pass
+
+class TPLFileRGB565:
+    pass
+
+class TPLFileRGB5A3:
+    pass
+
+class TPLFileRGBA32:
+    pass
 
 class TPLFileC4:
     @staticmethod
@@ -221,6 +238,55 @@ class TPLFileC4:
         
         return image
 
+class TPLFileC8:
+    @staticmethod
+    def get_pixel(src:bytes, s:int, t:int, width:int, palette):
+        sBlk = s >> 3
+        tBlk = t >> 2
+        widthBlks = (width >> 3)
+        base = (tBlk * widthBlks + sBlk) << 5
+        blkS = s & 7
+        blkT = t & 3
+        blkOff = (blkT << 3) + blkS
+
+        val = src[base+blkOff]
+
+        return palette[val]
+    
+    @staticmethod
+    def parse_source(source:bytes, header: TPLTextureHeader) -> Image.Image:
+        width, height = (header.width, header.height)
+        # blocks_to_read = (width//4) * (height//4) * 8
+        image_data = source[header.address:]
+
+        byt = source[header.palette:][:0x200]
+        palette = [int.from_bytes(byt[i*2:i*2+2], 'big') for i in range(0x100)]
+
+        # if header.palette_format == 0: # RGB565
+        #     func = TPLColorR5G6B5
+        #     pixel_format = "RGBA"
+        # elif header.palette_format == 1: # IA8
+        #     func = TPLColorIA8
+        #     pixel_format = "RGB"
+        # elif header.palette_format == 2: # RGB5A3
+        func = TPLColorRGB5A3
+        pixel_format = "RGBA"
+        # else:
+        #     assert(False)
+
+        palette = [func.from_int(x).data for x in palette]
+
+        image = new_Image(pixel_format, (width, height))
+
+        for t in range(height):
+            for s in range(width):
+                p = TPLFileC8.get_pixel(image_data, s, t, width, palette)
+                image.putpixel((s,t), p)
+        
+        return image
+
+class TPLFileC14X2:
+    pass
 
 class TPLFileCMPR:
     @staticmethod
@@ -287,49 +353,3 @@ class TPLFileCMPR:
         else:
             return (0,0,0,0)
 
-class TPLFileC8:
-    @staticmethod
-    def get_pixel(src:bytes, s:int, t:int, width:int, palette):
-        sBlk = s >> 3
-        tBlk = t >> 2
-        widthBlks = (width >> 3)
-        base = (tBlk * widthBlks + sBlk) << 5
-        blkS = s & 7
-        blkT = t & 3
-        blkOff = (blkT << 3) + blkS
-
-        val = src[base+blkOff]
-
-        return palette[val]
-    
-    @staticmethod
-    def parse_source(source:bytes, header: TPLTextureHeader) -> Image.Image:
-        width, height = (header.width, header.height)
-        # blocks_to_read = (width//4) * (height//4) * 8
-        image_data = source[header.address:]
-
-        byt = source[header.palette:][:0x200]
-        palette = [int.from_bytes(byt[i*2:i*2+2], 'big') for i in range(0x100)]
-
-        # if header.palette_format == 0: # RGB565
-        #     func = TPLColorR5G6B5
-        #     pixel_format = "RGBA"
-        # elif header.palette_format == 1: # IA8
-        #     func = TPLColorIA8
-        #     pixel_format = "RGB"
-        # elif header.palette_format == 2: # RGB5A3
-        func = TPLColorRGB5A3
-        pixel_format = "RGBA"
-        # else:
-        #     assert(False)
-
-        palette = [func.from_int(x).data for x in palette]
-
-        image = new_Image(pixel_format, (width, height))
-
-        for t in range(height):
-            for s in range(width):
-                p = TPLFileC8.get_pixel(image_data, s, t, width, palette)
-                image.putpixel((s,t), p)
-        
-        return image

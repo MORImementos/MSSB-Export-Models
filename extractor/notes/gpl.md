@@ -1,0 +1,86 @@
+### GPL
+- GPL Header
+    - 4 bytes: Version number
+    - 4 bytes: User-defined data size
+    - 4 bytes: Offset to user data (32 byte aligned)
+    - 4 bytes: Offset to geometry descriptor array
+- Geometry Descriptor Array
+    - 4 bytes: Offset to display object
+    - 4 bytes: Offset to string name of the display object
+- Display Object Bank
+    - collection of display objects(?)
+    - Display object header (DODisplayObjectLayout or DOLayout)
+        - 4 bytes: Offset to position data header from beginning of display object
+        - 4 bytes: Offset to color data header from beginning of display object
+        - 4 bytes: Offset to texture data header from beginning of display object
+        - 4 bytes: Offset to lighting data header from beginning of display object
+        - 4 bytes: Offset to display data header from beginning of display object
+    - Position data header
+        - 4 bytes: Offset to position array from beginning of the display object
+        - 2 bytes: Number of positions
+        - 1 byte: Quantize info
+        - 1 byte: number of components (2 or 3)
+    - Position array
+    - Color data header
+        - 4 bytes: Offset to color array from beginning of DO
+        - 2 bytes: Number of colors
+        - 1 byte: Quantize info
+        - 1 byte: Number of components (3 or 4)
+    - Color array
+    - Texture data header
+        - 4 bytes: Offset to texture coordinate array from beginning of DO
+        - 2 bytes: Number of texture coordinates
+        - 1 byte: Quantize info
+        - 1 byte: Number of components (1 or 2)
+        - 4 bytes: Offset to texture palette file name from beginning of DO
+        - 4 bytes: Pad (reserved for runtime use)
+    - Texture coordinate array
+    - Display data header
+        - 4 bytes: Offset to primitive bank from beginning of DO
+        - 4 bytes: Offset to display state list from beginning of DO
+        - 2 bytes: Number of display state list entries
+        - 2 bytes: Pad
+    - Display state list
+        - DODisplayState
+        - 1 byte: State ID
+        - 3 bytes: Pad
+        - 4 bytes: Setting
+            - Display state settings
+                - DISPLAY_STATE_TEXTURE
+                    - Bits 31-28: Mag filter
+                    - Bits 27-24: Min filter
+                    - Bits 23-20: Wrap T
+                    - Bits 19-16: Wrap S
+                    - Bits 15-0: Texture index
+                - DISPLAY_STATE_TEXTURE_COMBINE
+                    - GXTevMode
+                - DISPLAY_STATE_VCD
+                    - Bits 31-26: None
+                    - Bits 25-24: Tex Coord 7
+                    - Bits 23-22: Tex Coord 6
+                    - Bits 21-20: Tex Coord 5
+                    - Bits 19-18: Tex Coord 4
+                    - Bits 17-16: Tex Coord 3
+                    - Bits 15-14: Tex Coord 2
+                    - Bits 13-12: Tex Coord 1
+                    - Bits 11-10: Tex Coord 0
+                    - Bits 9-8: Color 1
+                    - Bits 7-6: Color 0
+                    - Bits 5-4: Normal
+                    - Bits 3-2: Position
+                    - Bits 1-0: Position Matrix Index
+                - DISPLAY_STATE_MTXLOAD
+                    - Bits 31-17: Source Matrix Index
+                    - Bits 16-0: Destination Matrix Index (0-7)
+        - 4 bytes: Offset to primitive list from beginning of DO
+        - 4 bytes: Length of primitive list in bytes 
+    - Primitive bank
+    - Lighting data header
+        - 4 bytes: Offset to normal array from beginning of DO
+        - 2 bytes: Number of normals
+        - 1 byte: Quantize info 
+        - 1 byte: Number of components (2 or 3)
+        - 4 bytes: Ambient percentage (0.0-100.0)
+    - Normal array
+    - String bank
+- String Bank

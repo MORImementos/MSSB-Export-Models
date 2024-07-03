@@ -7,7 +7,8 @@ from helper_mssb_data import *
 from helper_mssb_data import get_parts_of_file, float_from_fixedpoint
 
 def main():
-    file_name = input("Input file name: ")
+    # file_name = input("Input file name: ")
+    file_name = r"E:\MSSB\MSSB-Export-Models\extractor\boo.dat"
     part_of_file = int(input("Input part of file: "))
     with open(file_name, 'rb') as f:
         file_bytes = f.read()

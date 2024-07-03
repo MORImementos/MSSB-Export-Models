@@ -1,0 +1,26 @@
+### ACT
+- ACT Header (ACTLayout)
+    - 4 bytes: Version number
+    - 2 bytes: Actor ID
+    - 2 bytes: Number of bones
+    - 4 bytes: Branch offset (Tree.Offset)
+    - 4 bytes: Offset to root bone (Tree.Root)
+    - 4 bytes: Offset to .GPL file name
+    - 2 bytes: Skin file ID (0xFFFF = not present)
+    - 2 bytes: Pad
+    - 4 bytes: User-defined data size
+    - 4 bytes: Offset to user data (32-byte aligned)
+- Bone Array
+    - Bone (ACTBoneLayout)
+    - 4 bytes: Offset to orientation control
+    - 4 bytes: Offset to previous sibling (Branch.Prev)
+    - 4 bytes: Offset to next sibling (Branch.Next)
+    - 4 bytes: Offset to parent (Branch.Parent)
+    - 4 bytes: Offset to children (Branch.Children)
+    - 2 bytes: Display Object ID (0xFFFF = not present)
+    - 2 bytes: Bone ID
+    - 1 byte: Inheritance flag
+    - 1 byte: Drawing priority
+    - 2 bytes: Pad
+- Pivot Point Array
+- String Bank

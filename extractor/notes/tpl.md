@@ -1,0 +1,31 @@
+### TPL
+- TPL Header (TEXPalette)
+    - 4 bytes: Version number
+    - 4 bytes: Number of texture descriptors
+    - 4 bytes: Offset to texture descriptor (8 bytes) array 
+- Texture Descriptor Array (TEXDescriptor)
+    - 4 bytes: Offset to image header
+    - 4 bytes: Offset to CLUT header
+- CLUT Header Bank
+    - Should bad enough bytes to align 32 byte boundary from top of TPL file
+    - CLUT Header
+    - 2 bytes: Number of entries
+    - 2 bytes: Pad
+    - 4 bytes: Pixel format
+    - 4 bytes: Offset to CLUT data
+- Image Header Bank
+    - Image header (TEXHeader)
+    - 2 bytes: Height
+    - 2 bytes: Width
+    - 4 bytes: Color format
+    - 4 bytes: Offset to image data
+    - 4 bytes: WrapS
+    - 4 bytes: WrapT
+    - 4 bytes: MinFilter
+    - 4 bytes: MagFilter
+    - 4 bytes: LODBias
+    - 1 byte: EdgeLODEnable
+    - 1 byte: Image min LOD
+    - 1 byte: Image max LOD
+    - 1 byte: Pad
+- Image Bank
