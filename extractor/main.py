@@ -3,8 +3,9 @@ from os.path import join, exists
 from os import rename
 from run_extract_Texture import export_images
 from run_extract_Model import export_model
+from run_extract_Actor import export_actor
 from run_file_discovery import discover_US_files, discover_beta_files, discover_JP_files, discover_EU_files, discover_family_files
-import json, progressbar
+import json, progressbar, traceback
 from run_draw_pic import draw_pic
 from helper_file_system import *
 
@@ -37,6 +38,14 @@ def interpret_bytes(b:bytearray, output_folder:str):
             output_text += f"Part {part} interpreted as model.\n"
             any_outputs = True
         except Exception as e:
+            pass
+    
+        try:
+            export_actor(b, new_out_folder, part)
+            output_text += f"Part {part} interpreted as actor.\n"
+            any_outputs = True
+        except Exception as e:
+            # traceback.print_exc()
             pass
 
     if any_outputs:

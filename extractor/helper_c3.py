@@ -1,4 +1,8 @@
 from __future__ import annotations
+from helper_vector import *
+from helper_rotation import *
+from helper_string import warn
+from struct import pack
 
 from helper_mssb_data import DataBytesInterpreter
 
@@ -354,3 +358,210 @@ class DisplayObjectDisplayState(DataBytesInterpreter):
         
         return t
 
+class DSTree(DataBytesInterpreter):
+    DATA_FORMAT = '>xxxxI'
+
+    def __init__(self, b:bytes, offset:int) -> None:
+        self.offsetToRoot \
+        = self.parse_bytes(b, offset)[0]
+    
+    def add_offset(self, offset:int) -> None:
+        if self.offsetToRoot != 0:
+            self.offsetToRoot += offset
+
+    def __str__(self) -> str:
+        return ''
+
+class DSBranch(DataBytesInterpreter):
+    DATA_FORMAT = '>IIII'
+
+    def __init__(self, b:bytes, offset:int) -> None:
+        self.offsetToPreviousBranch, \
+        self.offsetToNextBranch, \
+        self.offsetToParentBranch, \
+        self.offsetToFirstChildBranch \
+        = self.parse_bytes(b, offset)
+    
+    def add_offset(self, offset:int) -> None:
+        if self.offsetToPreviousBranch:
+            self.offsetToPreviousBranch += offset
+        if self.offsetToNextBranch:
+            self.offsetToNextBranch += offset
+        if self.offsetToParentBranch:
+            self.offsetToParentBranch += offset
+        if self.offsetToFirstChildBranch:
+            self.offsetToFirstChildBranch += offset
+
+    def __str__(self) -> str:
+        return ''
+
+class ACTLayoutHeader(DataBytesInterpreter):
+    DATA_FORMAT = '>IHHxxxxxxxxIHxxII'
+
+    def __init__(self, b:bytes, offset:int) -> None:
+        self.versionNumber, \
+        self.actorID, \
+        self.numberOfBones, \
+        self.GEOPaletteName, \
+        self.skinFileID, \
+        self.userDefinedDataSize, \
+        self.offsetToUserDefinedData, \
+        = self.parse_bytes(b, offset)
+        assert self.versionNumber == 0x7B7960
+        self.boneTree = DSTree(b, offset + 0x8)
+
+    def add_offset(self, offset:int) -> None:
+        if self.offsetToUserDefinedData != 0:
+            self.offsetToUserDefinedData += offset
+        if self.GEOPaletteName != 0:
+            self.GEOPaletteName += offset
+        self.boneTree.add_offset(offset)
+
+    def __str__(self) -> str: 
+        t = ""
+        t += f"=={self.__class__.__name__}==\n"
+        t += f"Actor ID: {hex(self.actorID)}\n"
+        t += f"Bone Count: {self.numberOfBones}\n"
+        t += f"GEO Palette Name Offset: {hex(self.GEOPaletteName)}\n"
+        t += f"Skin File ID: {self.skinFileID}\n"
+        t += f"User Defined Data Offset: {self.offsetToUserDefinedData}\n"
+        t += f"User Defined Data Size: {self.userDefinedDataSize}"
+        return t
+
+class ACTBoneLayoutHeader(DataBytesInterpreter):
+    DATA_FORMAT = ''.join(''' \
+    >I
+    xxxx
+    xxxx
+    xxxx
+    xxxx
+    HHccxx
+    '''.split())
+
+    def __init__(self, b:bytes, offset:int) -> None:
+        self.offsetToCTRLControl, \
+        self.GEOFileID, \
+        self.boneID, \
+        self.inheritanceFlag, \
+        self.drawingPriority \
+        = self.parse_bytes(b, offset)
+        self.branch = DSBranch(b, offset + 0x4)
+        self.previousBone = None
+        self.nextBone = None
+        self.parentBone = None
+        self.firstChildBone = None
+        self.CTRL = None
+    
+    def add_offset(self, offset:int) -> None:
+        if self.offsetToCTRLControl:
+            self.offsetToCTRLControl += offset
+        self.branch.add_offset(offset)
+
+    def __str__(self) -> str:
+        t = ''
+        t += f"=={self.__class__.__name__}==\n"
+        t += f'GEO ID: {self.GEOFileID}\n'
+        t += f'Bone ID: {self.boneID}\n'
+        if self.CTRL:
+            t += f'Orientation:\n{self.CTRL}'
+        return t
+
+# TODO: Add support for CTRLMTXControl types
+class CTRLControl(DataBytesInterpreter):
+    DATA_FORMAT = '>cxxx'
+
+    CTRL_NONE =      0
+    CTRL_SCALE =     0b1
+    CTRL_ROT_EULER = 0b10
+    CTRL_ROT_QUAT =  0b100
+    CTRL_ROT_TRANS = 0b1000
+    CTRL_MTX =       0b10000
+
+    def __init__(self, b:bytes, offset:int) -> None:
+        self.type \
+        = self.parse_bytes(b, offset)[0]
+        self.type = ord(self.type)
+        if self.type & CTRLControl.CTRL_ROT_EULER or self.type & CTRLControl.CTRL_MTX:
+            warn(f'Encountered unsupported CTRLControl type {self.type}')
+            assert False
+        elif self.type == 0:
+            self.MTX = None
+            # Either this is the identity matrix or this bone has no control pointer
+            # Feeding in the identity matrix is probably fine
+            self.SRT = CTRLSRTControl(pack('>ffffffffff', 1, 1, 1, 0, 0, 0, 1, 0, 0, 0), 0)
+        else:
+            self.MTX = None
+            self.SRT = CTRLSRTControl(b, offset + 0x4)
+
+    def __str__(self) -> str:
+        if self.SRT:
+            return str(self.SRT)
+        elif self.MTX:
+            return str(self.MTX)
+        else:
+            return ''
+
+class CTRLSRTControl(DataBytesInterpreter):
+    DATA_FORMAT = '>ffffffffff'
+
+    def __init__(self, b:bytes, offset:int, usesEulerRotation:bool = False):
+        self.usesEulerRotation = usesEulerRotation
+        self.scale:Vector3 = [1, 1, 1]
+        self.eulerRotation:Vector3 = [0, 0, 0] if usesEulerRotation else None
+        # X,Y,Z,W format
+        self.quaternionRotation:Vector4 = [0, 0, 0, 1] if not usesEulerRotation else None
+        self.translation:Vector3 = [0, 0, 0]
+        if usesEulerRotation:
+            floats = self.parse_bytes(b, offset)
+            self.scale[:3] = floats[:3]
+            self.eulerRotation[:3] = floats[3:6]
+            self.quaternionRotation = None
+            self.translation[:3] = floats[7:10]
+        else:
+            floats = self.parse_bytes(b, offset)
+            self.scale[:3] = floats[:3]
+            self.eulerRotation = None
+            self.quaternionRotation[:4] = floats[3:7]
+            self.translation[:3] = floats[7:10]
+            # Not confident on this, but I had to do this in Mario Super Sluggers
+            self.quaternionRotation[3] *= -1
+
+    def getScale(self) -> Vector3:
+        return self.scale
+
+    def getEulerRotation(self) -> Vector3:
+        if self.usesEulerRotation:
+            return self.eulerRotation
+        else:
+            return Vector3(*quaternion_to_euler(self.quaternionRotation[3], *self.quaternionRotation[:3]))
+
+    def getTranslation(self) -> Vector3:
+        return self.translation
+    
+    def transform(self) -> list[list[float]]:
+        if self.usesEulerRotation:
+            warn ("Euler rotations not supported")
+            assert (0)
+        scalingMatrix = np.matrix([
+            [self.scale[0], 0, 0, 0],
+            [0, self.scale[1], 0, 0],
+            [0, 0, self.scale[2], 0],
+            [0, 0, 0,             1]])
+        translationMatrix = np.matrix([
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [*self.translation, 1]])
+        rotationMatrix = quaternion_rotation_matrix([self.quaternionRotation[3], *self.quaternionRotation[:3]])
+        return np.matmul(np.matmul(scalingMatrix, rotationMatrix), translationMatrix)
+
+    def __str__(self) -> str:
+        t = ''
+        t += f'Scale: {self.getScale()}\n'
+        t += f'Rotation (Euler): {self.getEulerRotation()}\n'
+        t += f'Translation: {self.getTranslation()}'
+        return t
+
+# TODO
+class CTRLMTXControl(DataBytesInterpreter):
+    pass
