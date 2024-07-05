@@ -5,20 +5,36 @@ from helper_c3 import *
 from helper_mssb_data import *
 
 from helper_mssb_data import get_parts_of_file, float_from_fixedpoint
+import os
 
 def main():
-    # todo (duh)
-    print("extracting actor on a per file basis is not yet implemented")
+    # added a basic impl like I used for the model extract
+    file_name = r"E:\MSSB\MSSB-Export-Models\extractor\data\test\06CFD000.dat"
+    part_of_file = int(input("Input part of file: "))
+    with open(file_name, 'rb') as f:
+        file_bytes = f.read()
+    export_actor(file_bytes, dirname(file_name), part_of_file)
+
+# log 
+def log_to_file(log_file, message):
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(message + '\n')
 
 def export_actor(file_bytes:bytearray, output_directory:str, part_of_file):
+
+    log_file = join(output_directory, "actor_export_log.txt")
+    if os.path.exists(log_file):
+        os.remove(log_file)
+
     parts_of_file = get_parts_of_file(file_bytes)
 
     base_act_address = parts_of_file[part_of_file]
     act_header = ACTLayoutHeader(file_bytes, base_act_address)
-    print(act_header)
-    print(hex(base_act_address))
+    log_to_file(log_file, f"{act_header}")
+    log_to_file(log_file, f"Base ACT Address: {hex(base_act_address)}")
     act_header.add_offset(base_act_address)
     geo_name = get_c_str(file_bytes, act_header.GEOPaletteName)
+    log_to_file(log_file, f"GeoPaletteName: {geo_name}")
 
     rootBone = ACTBoneLayoutHeader(file_bytes, act_header.boneTree.offsetToRoot)
     rootBone.add_offset(base_act_address)
@@ -50,7 +66,14 @@ def export_actor(file_bytes:bytearray, output_directory:str, part_of_file):
         else:
             # Feed in dummy data that gives this bone an SRT correlating to the identity
             bone.CTRL = CTRLControl(b'\0\0\0\0', 0)
-        print(bone)
+        log_to_file(log_file, f"{bone}")
+
+    actor_file = join(output_directory, f"{geo_name}.actor")
+    with open(actor_file, 'w', encoding='utf-8') as f:
+        f.write(f"ACTLayoutHeader: {act_header}\n")
+        f.write(f"GeoPaletteName: {geo_name}\n")
+        for bone in ACTBoneLayoutHeaders:
+            f.write(f"{bone}\n")
 
 if __name__ == "__main__":
     main()

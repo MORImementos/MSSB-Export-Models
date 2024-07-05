@@ -5,23 +5,31 @@ from helper_c3 import *
 from helper_mssb_data import *
 
 from helper_mssb_data import get_parts_of_file, float_from_fixedpoint
+import os
 
 def main():
     # file_name = input("Input file name: ")
-    file_name = r"E:\MSSB\MSSB-Export-Models\extractor\boo.dat"
+    file_name = r"E:\MSSB\MSSB-Export-Models\extractor\data\test\06CFD000.dat"
     part_of_file = int(input("Input part of file: "))
     with open(file_name, 'rb') as f:
         file_bytes = f.read()
     export_model(file_bytes, dirname(file_name), part_of_file)
 
+def log_to_file(log_file, message):
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(message + '\n')
+
 def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, mtl_header:str = ""):
+    log_file = join(output_directory, "export_log.txt")
+    if os.path.exists(log_file):
+        os.remove(log_file)
 
     parts_of_file = get_parts_of_file(file_bytes)
 
     base_gpl_address = parts_of_file[part_of_file]
     geo_header = GeoPaletteHeader(file_bytes, base_gpl_address)
-    print(geo_header)
-    print(hex(base_gpl_address))
+    log_to_file(log_file, f"GeoPaletteHeader: {geo_header}")
+    log_to_file(log_file, f"Base GPL Address: {hex(base_gpl_address)}")
     geo_header.add_offset(base_gpl_address)
     
     descriptors:list[GeoDescriptor] = []
@@ -34,15 +42,18 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         MAX_NAME_LENGTH = 100
         
         d.name = get_c_str(file_bytes, d.offsetToName)
+        log_to_file(log_file, f"GeoDescriptor {i}: {d}")
 
         descriptors.append(d)
 
         dol_offset = d.offsetToDisplayObject
         dol = DisplayObjectLayout(file_bytes, dol_offset)
         dol.add_offset(dol_offset)
+        log_to_file(log_file, f"DisplayObjectLayout {i}: {dol}")
 
         dop = DisplayObjectPositionHeader(file_bytes, dol.OffsetToPositionData)
         dop.add_offset(dol_offset)
+        log_to_file(log_file, f"DisplayObjectPositionHeader {i}: {dop}")
 
         poss = parse_array_values(
             file_bytes[dop.offsetToPositionArray : dop.offsetToPositionArray + (dop.numberOfPositions * (dop.componentSize * dop.numberOfComponents))],
@@ -53,9 +64,12 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             dop.componentSigned,
             PositionVector
             )
+        log_to_file(log_file, f"Positions for Descriptor {i}: {poss}")
 
         doc = DisplayObjectColorHeader(file_bytes, dol.OffsetToColorData)
         doc.add_offset(dol_offset)
+        log_to_file(log_file, f"DisplayObjectColorHeader {i}: {doc}")
+
 
         dot = []
         tex_coords = []
@@ -66,6 +80,7 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             dd.name = get_c_str(file_bytes, dd.offsetToTexturePaletteFileName)
 
             dot.append(dd)
+            log_to_file(log_file, f"DisplayObjectTextureHeader {i}: {dd}")
 
             if i == 0:
                 tex_coords = parse_array_values(
@@ -77,9 +92,11 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
                     dd.componentSigned,
                     TextureVector
                     )
+        log_to_file(log_file, f"Texture coordinates for Descriptor {i}: {tex_coords}")
 
         doli = DisplayObjectLightingHeader(file_bytes, dol.OffsetToLightingData)
         doli.add_offset(dol_offset)
+        log_to_file(log_file, f"DisplayObjectLightingHeader {i}: {doli}")
 
         norms = parse_array_values(
             file_bytes[doli.offsetToNormalArray:][:(doli.numberOfNormals * (doli.componentSize * doli.numberOfComponents))],
@@ -90,9 +107,11 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             doli.componentSigned,
             NormalVector
             )
+        log_to_file(log_file, f"Normals for Descriptor {i}: {norms}")
 
         dod = DisplayObjectDisplayHeader(file_bytes, dol.OffsetToDisplayData)
         dod.add_offset(dol_offset)
+        log_to_file(log_file, f"DisplayObjectDisplayHeader {i}: {dod}")
 
         dods = [DisplayObjectDisplayState(file_bytes, dod.offsetToDisplayStateList + i * DisplayObjectDisplayState.SIZE_OF_STRUCT) for i in range(dod.numberOfDisplayStateEntries)]
         all_draws = []
@@ -104,12 +123,13 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         for dod_i, dod in enumerate(dods):
             dod.add_offset(dol_offset)
             # print(dod)
-            
+            log_to_file(log_file, f"DisplayObjectDisplayState {i}.{dod_i}: {dod}")
+          
             if dod.stateID == 1: # Texture
                 h = hex(dod.setting)[2:]
                 if len(h) == 8 and h[2:4] == "11":
                     texture_index = dod.setting & 0xff
-                    # print(f"loading Texture {texture_index}")
+                    log_to_file(log_file, f"Loading Texture {texture_index}")
             elif dod.stateID == 2: # Vertex Description
 
                 size_conversion = {
@@ -128,10 +148,14 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
                     "uv_size": all_sizes[5],
                     "uv_offset": sum(all_sizes[:5]),
                 }
+                log_to_file(log_file, f"Vertex Description for Descriptor {i}.{dod_i}: {comps}")
+
 
             elif dod.stateID == 3: # Matrix Load
                 matrix_src = dod.setting >> 16
                 matrix_dst = dod.setting & 0xffff
+                log_to_file(log_file, f"Matrix Load: Source {matrix_src}, Destination {matrix_dst}")
+
             else:
                 raise ValueError(f"Unknown Display Call: {dod.stateID}")
 
@@ -139,6 +163,7 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
                 tris = parse_indices(file_bytes[dod.offsetToPrimitiveList:][:dod.byteLengthPrimitiveList], **comps)
                 # these_tris.extend(tris)
                 all_draws.append((tris, texture_index, [f"Using Texture {texture_index}", f"Using Matrix {matrix_src}, {matrix_dst}", f"Display Object {dod_i}"]))
+                log_to_file(log_file, f"Primitive List for Descriptor {i}.{dod_i}: {tris}")
 
 
         # Write to Obj
@@ -164,6 +189,7 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         #     debug = 0
 
         write_text(str(obj_file), join(output_directory, d.name + ".obj"))
+        log_to_file(log_file, f"Exported {d.name}.obj to {output_directory}")
 
 def parse_array_values(b:bytes, component_count:int, component_width:int, struct_size:int, fixed_point:int, signed:bool, cls=None)->list:
     to_return = []

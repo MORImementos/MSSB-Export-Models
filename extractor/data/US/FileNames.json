@@ -226,5 +226,9 @@
   {
     "Location": "F112800",
     "Name": "First Found Bro(B)"
+  },
+  {
+    "Location": "06CFD000",
+    "Name": "Mario Stadium"
   }
 ]
