@@ -435,7 +435,7 @@ class ACTBoneLayoutHeader(DataBytesInterpreter):
     xxxx
     xxxx
     xxxx
-    HHccxx
+    HHBBxx
     '''.split())
 
     def __init__(self, b:bytes, offset:int) -> None:
@@ -446,11 +446,11 @@ class ACTBoneLayoutHeader(DataBytesInterpreter):
         self.drawingPriority \
         = self.parse_bytes(b, offset)
         self.branch = DSBranch(b, offset + 0x4)
-        self.previousBone = None
-        self.nextBone = None
-        self.parentBone = None
-        self.firstChildBone = None
-        self.CTRL = None
+        self.previousBone:ACTBoneLayoutHeader = None
+        self.nextBone:ACTBoneLayoutHeader = None
+        self.parentBone:ACTBoneLayoutHeader = None
+        self.firstChildBone:ACTBoneLayoutHeader = None
+        self.CTRL:CTRLControl = None
     
     def add_offset(self, offset:int) -> None:
         if self.offsetToCTRLControl:
@@ -468,7 +468,7 @@ class ACTBoneLayoutHeader(DataBytesInterpreter):
 
 # TODO: Add support for CTRLMTXControl types
 class CTRLControl(DataBytesInterpreter):
-    DATA_FORMAT = '>cxxx'
+    DATA_FORMAT = '>Bxxx'
 
     CTRL_NONE =      0
     CTRL_SCALE =     0b1
@@ -478,19 +478,18 @@ class CTRLControl(DataBytesInterpreter):
     CTRL_MTX =       0b10000
 
     def __init__(self, b:bytes, offset:int) -> None:
+        self.MTX:CTRLMTXControl = None
+        self.SRT:CTRLSRTControl = None
         self.type \
         = self.parse_bytes(b, offset)[0]
-        self.type = ord(self.type)
         if self.type & CTRLControl.CTRL_ROT_EULER or self.type & CTRLControl.CTRL_MTX:
             warn(f'Encountered unsupported CTRLControl type {self.type}')
             assert False
         elif self.type == 0:
-            self.MTX = None
             # Either this is the identity matrix or this bone has no control pointer
             # Feeding in the identity matrix is probably fine
             self.SRT = CTRLSRTControl(pack('>ffffffffff', 1, 1, 1, 0, 0, 0, 1, 0, 0, 0), 0)
         else:
-            self.MTX = None
             self.SRT = CTRLSRTControl(b, offset + 0x4)
 
     def __str__(self) -> str:
@@ -535,6 +534,13 @@ class CTRLSRTControl(DataBytesInterpreter):
         else:
             return Vector3(*quaternion_to_euler(self.quaternionRotation[3], *self.quaternionRotation[:3]))
 
+    def getQuaternionRotation(self) -> Vector3:
+        if self.usesEulerRotation:
+            # Not going to add euler -> quaternion unless it ends up being necessary
+            assert False
+        else:
+            return self.quaternionRotation
+
     def getTranslation(self) -> Vector3:
         return self.translation
     
@@ -565,3 +571,7 @@ class CTRLSRTControl(DataBytesInterpreter):
 # TODO
 class CTRLMTXControl(DataBytesInterpreter):
     pass
+
+def copyAttributesToDict(obj, dict, attrs):
+    for attr in attrs:
+        dict[attr] = getattr(obj, attr)

@@ -5,7 +5,7 @@ from run_extract_Texture import export_images
 from run_extract_Model import export_model
 from run_extract_Actor import export_actor
 from run_file_discovery import discover_US_files, discover_beta_files, discover_JP_files, discover_EU_files, discover_family_files
-import json, progressbar, traceback
+import json, progressbar, traceback, os, shutil
 from run_draw_pic import draw_pic
 from helper_file_system import *
 
@@ -15,18 +15,25 @@ def interpret_bytes(b:bytearray, output_folder:str):
     offsets_text = "Offsets of parts: " + ", ".join([hex(offset) for offset in parts_of_file]) + "\n"
     output_text += offsets_text
 
+    if not os.path.exists(output_folder):
+        os.mkdir(output_folder)
+
     # interpret the files as a file, not parts of a file
     any_outputs = False
     # interpret the parts of the file
     if len(parts_of_file) > 0 and parts_of_file[0] == 80_92_000: # base address is a c3 file
         parts_of_file = []
     for part in [-1] + [x for x in range(len(parts_of_file))]:
+        any_outputs_in_this_part = False
+        print(f"\nextracting part {part}\n")
         new_out_folder = join(output_folder, f"part {part}")
+        if not os.path.exists(new_out_folder):
+            os.mkdir(new_out_folder)
         try:
             base_images = export_images(b, part)
             if len(base_images.images) > 0:
                 output_text += f"Part {part} interpreted as textures.\n"
-                any_outputs = True
+                any_outputs = any_outputs_in_this_part = True
 
                 base_images.write_images_to_folder(new_out_folder)
                 base_images.write_mtl_file(join(new_out_folder, 'mtl.mtl'), "")
@@ -36,17 +43,20 @@ def interpret_bytes(b:bytearray, output_folder:str):
         try:
             export_model(b, new_out_folder, part)
             output_text += f"Part {part} interpreted as model.\n"
-            any_outputs = True
+            any_outputs = any_outputs_in_this_part = True
         except Exception as e:
+            traceback.print_exc()
             pass
     
         try:
             export_actor(b, new_out_folder, part)
             output_text += f"Part {part} interpreted as actor.\n"
-            any_outputs = True
+            any_outputs = any_outputs_in_this_part = True
         except Exception as e:
-            # traceback.print_exc()
             pass
+
+        if not any_outputs_in_this_part:
+            shutil.rmtree(new_out_folder)
 
     if any_outputs:
         write_text(output_text, join(output_folder, "notes.txt"))
