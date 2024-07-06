@@ -583,7 +583,7 @@ class DataBytesInterpreter:
         these_bytes = all_bytes[offset:offset+struct_size]
 
         if len(these_bytes) != struct_size:
-            raise ValueError(f'Ran out of bytes to interpret in {cls.__class__.__name__}, needed {cls.SIZE_OF_STRUCT}, received {len(these_bytes)}')
+            raise ValueError(f'Ran out of bytes to interpret in {cls.__name__}, needed {cls.SIZE_OF_STRUCT}, received {len(these_bytes)}')
 
         return unpack(format_str, these_bytes)
 
