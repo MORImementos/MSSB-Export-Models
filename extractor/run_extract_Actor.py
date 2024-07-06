@@ -5,7 +5,7 @@ from helper_c3 import *
 from helper_mssb_data import *
 
 from helper_mssb_data import get_parts_of_file, float_from_fixedpoint
-import os
+import os, json
 
 def main():
     # added a basic impl like I used for the model extract
@@ -25,6 +25,10 @@ def export_actor(file_bytes:bytearray, output_directory:str, part_of_file):
     log_file = join(output_directory, "actor_export_log.txt")
     if os.path.exists(log_file):
         os.remove(log_file)
+    f = open(log_file, 'w')
+    f.close()
+
+    json_dict = dict()
 
     parts_of_file = get_parts_of_file(file_bytes)
 
@@ -74,6 +78,39 @@ def export_actor(file_bytes:bytearray, output_directory:str, part_of_file):
         f.write(f"GeoPaletteName: {geo_name}\n")
         for bone in ACTBoneLayoutHeaders:
             f.write(f"{bone}\n")
+
+    copyAttributesToDict(act_header, json_dict, [
+        'actorID',
+        'numberOfBones',
+        'skinFileID'
+    ])
+    json_dict['GEOPaletteName'] = geo_name
+    bone_list = json_dict['bones'] = []
+    for bone in ACTBoneLayoutHeaders:
+        bone_dict = dict()
+        bone_list.append(bone_dict)
+        copyAttributesToDict(bone, bone_dict, [
+            'GEOFileID',
+            'boneID',
+            'inheritanceFlag',
+            'drawingPriority',
+        ])
+        bone_dict['previousSibling'] = bone.previousBone.boneID if bone.previousBone else -1
+        bone_dict['nextSibling'] = bone.nextBone.boneID if bone.nextBone else -1
+        bone_dict['parent'] = bone.parentBone.boneID if bone.parentBone else -1
+        bone_dict['firstChild'] = bone.firstChildBone.boneID if bone.firstChildBone else -1
+        orientation_dict = bone_dict['orientation'] = dict()
+        # I'm assuming every CTRL is a CTRLSRTControl type, if CTRLMTXControl
+        # ever needs to be implemented this will need to be updated
+        orientation_dict['scale'] = bone.CTRL.SRT.getScale()
+        orientation_dict['quaternion'] = bone.CTRL.SRT.getQuaternionRotation()
+        orientation_dict['translation'] = bone.CTRL.SRT.getTranslation()
+
+    json_file = join(output_directory, "actor.json")
+    if os.path.exists(json_file):
+        os.remove(json_file)
+    with open(json_file, 'w') as f:
+        f.write(json.dumps(json_dict, indent=4))
 
 if __name__ == "__main__":
     main()
