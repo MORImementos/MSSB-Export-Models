@@ -20,7 +20,7 @@ def log_to_file(log_file, message):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(message + '\n')
 
-def export_actor(file_bytes:bytearray, output_directory:str, part_of_file):
+def export_actor(file_bytes:bytearray, output_directory:str, part_of_file) -> dict:
 
     log_file = join(output_directory, "actor_export_log.txt")
     if os.path.exists(log_file):
@@ -111,6 +111,8 @@ def export_actor(file_bytes:bytearray, output_directory:str, part_of_file):
         os.remove(json_file)
     with open(json_file, 'w') as f:
         f.write(json.dumps(json_dict, indent=4))
+    
+    return json_dict
 
 if __name__ == "__main__":
     main()
