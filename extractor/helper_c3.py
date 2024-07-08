@@ -6,6 +6,28 @@ from struct import pack
 
 from helper_mssb_data import DataBytesInterpreter
 
+class SECTION_TYPES():
+    ACT = 0
+    GEO = 1
+    texture = 2
+    collision = 3
+    type_count = 4
+
+SECTION_TEMPLATES:dict[str, dict[int, int]] = {
+    'Stadium': {
+        'stadium': {
+            SECTION_TYPES.ACT: 0,
+            SECTION_TYPES.GEO: 3,
+            SECTION_TYPES.texture: 5,
+            SECTION_TYPES.collision: 2
+        },
+        'backdrop': {
+            SECTION_TYPES.ACT: 1,
+            SECTION_TYPES.GEO: 4
+        }
+    }
+}
+
 class GeoPaletteHeader(DataBytesInterpreter):
     DATA_FORMAT = '>IIIII'
 
@@ -544,22 +566,11 @@ class CTRLSRTControl(DataBytesInterpreter):
     def getTranslation(self) -> Vector3:
         return self.translation
     
-    def transform(self) -> list[list[float]]:
+    def getTransform(self) -> list[list[float]]:
         if self.usesEulerRotation:
             warn ("Euler rotations not supported")
             assert (0)
-        scalingMatrix = np.matrix([
-            [self.scale[0], 0, 0, 0],
-            [0, self.scale[1], 0, 0],
-            [0, 0, self.scale[2], 0],
-            [0, 0, 0,             1]])
-        translationMatrix = np.matrix([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0],
-            [*self.translation, 1]])
-        rotationMatrix = quaternion_rotation_matrix([self.quaternionRotation[3], *self.quaternionRotation[:3]])
-        return np.matmul(np.matmul(scalingMatrix, rotationMatrix), translationMatrix)
+        return sqtTransform(self.getScale(), self.getQuaternionRotation(), self.getTranslation())
 
     def __str__(self) -> str:
         t = ''

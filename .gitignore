@@ -158,3 +158,4 @@ extractor/outputs/*
 *.png
 *.dat
 *.dol
+my_notes/notes.txt

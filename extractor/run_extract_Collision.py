@@ -6,6 +6,7 @@ from pathlib import Path
 
 def main():
     file_name = r"E:\MSSB\MSSB-Export-Models\extractor\data\test\06CFD000.dat"
+    # file_name = "extractor/outputs/US/Referenced Files/Mario Stadium/Mario Stadium.dat"
     with open(file_name, 'rb') as f:
         file_bytes = f.read()
 
