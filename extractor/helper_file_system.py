@@ -1,4 +1,7 @@
 from os.path import join
+import os
+
+EXTRACTOR_FOLDER = os.path.dirname(os.path.abspath(__file__)) # This is your Project Root
 
 DATA_FOLDER           = "data"
 OUTPUT_FOLDER         = "outputs"

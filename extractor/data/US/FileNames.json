@@ -229,6 +229,7 @@
   },
   {
     "Location": "06CFD000",
-    "Name": "Mario Stadium"
+    "Name": "Mario Stadium",
+    "Format": "Stadium"
   }
 ]

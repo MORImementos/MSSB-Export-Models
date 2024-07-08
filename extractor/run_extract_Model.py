@@ -19,7 +19,7 @@ def log_to_file(log_file, message):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(message + '\n')
 
-def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, mtl_header:str = ""):
+def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, mtl_header:str = "") -> dict:
     log_file = join(output_directory, "model_export_log.txt")
     if os.path.exists(log_file):
         os.remove(log_file)
@@ -233,6 +233,8 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         os.remove(json_file)
     with open(json_file, 'w') as f:
         f.write(json.dumps(json_dict, indent=4))
+    
+    return json_dict
 
 def parse_array_values(b:bytes, component_count:int, component_width:int, struct_size:int, fixed_point:int, signed:bool, cls=None)->list:
     to_return = []

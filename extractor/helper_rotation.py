@@ -67,3 +67,17 @@ def quaternion_rotation_matrix(Q):
                            [0,   0,   0,   1]])
                             
     return rot_matrix
+
+def sqtTransform(s, q, t) -> np.matrix:
+    scalingMatrix = np.matrix([
+        [s[0], 0, 0, 0],
+        [0, s[1], 0, 0],
+        [0, 0, s[2], 0],
+        [0, 0, 0,             1]])
+    translationMatrix = np.matrix([
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [*t, 1]])
+    rotationMatrix = quaternion_rotation_matrix([q[3], *q[:3]])
+    return np.matmul(np.matmul(scalingMatrix, rotationMatrix), translationMatrix)

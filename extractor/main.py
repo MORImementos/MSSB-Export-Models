@@ -2,14 +2,56 @@ from helper_mssb_data import DataEntry, RollingDecompressor, ensure_dir, write_b
 from os.path import join, exists
 from os import rename
 from run_extract_Texture import export_images
-from run_extract_Model import export_model
+from run_extract_Model import *
 from run_extract_Actor import export_actor
 from run_file_discovery import discover_US_files, discover_beta_files, discover_JP_files, discover_EU_files, discover_family_files
 import json, progressbar, traceback, os, shutil
 from run_draw_pic import draw_pic
 from helper_file_system import *
+from helper_c3 import SECTION_TYPES, SECTION_TEMPLATES
 
-def interpret_bytes(b:bytearray, output_folder:str):
+def try_export_texture(b, new_out_folder, part) -> tuple[bool, str, dict]:
+    try:
+        output_text = ''
+        base_images = export_images(b, part)
+        assert len(base_images.images) > 0
+        output_text += f"Part {part} interpreted as textures.\n"
+        base_images.write_images_to_folder(new_out_folder)
+        base_images.write_mtl_file(join(new_out_folder, 'mtl.mtl'), "")
+        return 1, output_text, None
+    except:
+        # traceback.print_exc()
+        return 0, '', None
+
+def try_export_model(b, new_out_folder, part) -> tuple[bool, str, dict]:
+    try:
+        output_text = ''
+        out_dict = export_model(b, new_out_folder, part)
+        output_text += f"Part {part} interpreted as model.\n"
+        return 1, output_text, out_dict
+    except:
+        return 0, '', None
+
+def try_export_actor(b, new_out_folder, part) -> tuple[bool, str, dict]:
+    try:
+        output_text = ''
+        out_dict = export_actor(b, new_out_folder, part)
+        output_text += f"Part {part} interpreted as actor.\n"
+        return 1, output_text, out_dict
+    except:
+        return 0, '', None
+
+def try_export_dummy(b, new_out_folder, part) -> tuple[bool, str, dict]:
+    return 0, '', None
+
+export_methods = {
+    SECTION_TYPES.texture: try_export_texture,
+    SECTION_TYPES.GEO: try_export_model,
+    SECTION_TYPES.ACT: try_export_actor,
+    SECTION_TYPES.collision: try_export_dummy
+}
+
+def interpret_bytes(b:bytearray, output_folder:str, format:str):
     parts_of_file = get_parts_of_file(b)
     output_text = f"{len(parts_of_file)} {'part' if len(parts_of_file) == 1 else 'parts'} of file.\n"
     offsets_text = "Offsets of parts: " + ", ".join([hex(offset) for offset in parts_of_file]) + "\n"
@@ -18,42 +60,43 @@ def interpret_bytes(b:bytearray, output_folder:str):
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
 
-    # interpret the files as a file, not parts of a file
     any_outputs = False
+    section_template = SECTION_TEMPLATES.get(format, None)
+    section_data = None
+    if section_template is not None:
+        section_data = {}
+        for group in section_template:
+            section_data[group] = {}
+            for s_type in section_template[group]:
+                section_data[group][s_type] = None
     # interpret the parts of the file
     if len(parts_of_file) > 0 and parts_of_file[0] == 80_92_000: # base address is a c3 file
         parts_of_file = []
-    for part in [-1] + [x for x in range(len(parts_of_file))]:
+    for part in [x for x in range(len(parts_of_file))]:
+        print(f'extracting part {part}')
         any_outputs_in_this_part = False
-        print(f"\nextracting part {part}\n")
+        
         new_out_folder = join(output_folder, f"part {part}")
         if not os.path.exists(new_out_folder):
             os.mkdir(new_out_folder)
-        try:
-            base_images = export_images(b, part)
-            if len(base_images.images) > 0:
-                output_text += f"Part {part} interpreted as textures.\n"
+
+        if section_template is None:
+            possible_section_types = list(range(SECTION_TYPES.type_count))
+        else:
+            possible_section_types = []
+            for group in section_template:
+                for s_type in section_template[group]:
+                    if section_template[group][s_type] == part:
+                        possible_section_types = [s_type]
+                        this_group = group
+
+        for s_type in possible_section_types:
+            success, output_str, data_dict = export_methods[s_type](b, new_out_folder, part)
+            if success:
                 any_outputs = any_outputs_in_this_part = True
-
-                base_images.write_images_to_folder(new_out_folder)
-                base_images.write_mtl_file(join(new_out_folder, 'mtl.mtl'), "")
-        except:
-            pass
-
-        try:
-            export_model(b, new_out_folder, part)
-            output_text += f"Part {part} interpreted as model.\n"
-            any_outputs = any_outputs_in_this_part = True
-        except Exception as e:
-            traceback.print_exc()
-            pass
-    
-        try:
-            export_actor(b, new_out_folder, part)
-            output_text += f"Part {part} interpreted as actor.\n"
-            any_outputs = any_outputs_in_this_part = True
-        except Exception as e:
-            pass
+                output_text += output_str
+                if section_data is not None:
+                    section_data[this_group][s_type] = data_dict
 
         if not any_outputs_in_this_part:
             shutil.rmtree(new_out_folder)
@@ -62,6 +105,9 @@ def interpret_bytes(b:bytearray, output_folder:str):
         write_text(output_text, join(output_folder, "notes.txt"))
     else:
         write_text(output_text + "No output types found.\n", join(output_folder, "notes.txt"))
+
+    if section_data is not None:
+        obj_export(output_folder, section_data)
 
 def interpret_US():
     print('Looking at US files...')
@@ -111,15 +157,17 @@ def interpret_version(output_folder:str, results_path:str, zzzz_file:str, discov
         with open(file_name_path, 'r') as f:
             file_names = json.load(f)
         offset_to_name = {int(x['Location'], 16): x['Name'] for x in file_names}
+        offset_to_format = {int(x['Location'], 16): x['Format'] for x in file_names if 'Format' in x}
     else:
         offset_to_name = {}
+        offset_to_format = {}
 
     print("Interpreting referenced compressed files... (should take about 10 minutes)")
     for json_entry in progressbar.progressbar(found_files['GameReferencedCompressedFiles']):
         entry = DataEntry.from_dict(json_entry)
         if entry.file != zzzz_file:
             continue
-        
+
         this_file = f'{entry.disk_location:08X}'
         this_folder = join(REFERENCED_FOLDER, this_file)
 
@@ -129,18 +177,20 @@ def interpret_version(output_folder:str, results_path:str, zzzz_file:str, discov
 
             if exists(this_folder) and not exists(renamed_folder):
                 rename(this_folder, renamed_folder)
-            
+
             this_folder = renamed_folder
             this_file = renamed_file
 
         output_file_name = join(this_folder, this_file) + ".dat"
-
         if not exists(output_file_name):
             this_data = ZZZZ_DAT[entry.disk_location : entry.disk_location + entry.compressed_size]
             if len(this_data) == entry.compressed_size:
                 decompressed_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
-                
-                interpret_bytes(decompressed_bytes, this_folder)
+
+                this_format = offset_to_format.get(entry.disk_location, None)
+                print(this_folder)
+                print(this_format)
+                interpret_bytes(decompressed_bytes, this_folder, this_format)
 
                 write_bytes(decompressed_bytes, output_file_name)
     
