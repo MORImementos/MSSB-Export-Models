@@ -168,7 +168,7 @@ def obj_export(output_folder:str, section_data:dict) -> None:
             with open(objname, 'w') as f:
                 f.write(str(objFile))
             # copy the mtl file from the other folder
-            if SECTION_TYPES.texture in data_:
+            if SECTION_TYPES.texture in data_ and data_[SECTION_TYPES.texture] is not None:
                 mtl_section = data_[SECTION_TYPES.texture]['part']
                 existing_mtl_path = join(output_folder, f'part {mtl_section}')
                 for file in listdir(existing_mtl_path):
