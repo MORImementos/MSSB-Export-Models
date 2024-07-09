@@ -231,5 +231,16 @@
     "Location": "06CFD000",
     "Name": "Mario Stadium",
     "Format": "Stadium"
+  },
+  {
+    "Location": "06DC4000",
+    "Name": "Mario Stadium 2",
+    "Format": "Stadium"
+  },
+  {
+    "Location": "07207800",
+    "Name": "Yoshi Park",
+    "Format": "Stadium"
   }
+
 ]
