@@ -32,7 +32,7 @@ def unimplemented_format(err:str):
     raise ValueError(f"Parsing texture format \"{err}\" is not implemented.")
 
 TEXTURE_PARSE_FUNCTIONS = {
-    "I4":     (lambda a, b: unimplemented_format("I4")),
+    "I4":     (lambda a, b: TPLFileI4.parse_source(a, b)),
     "I8":     (lambda a, b: unimplemented_format("I8")),
     "IA4":    (lambda a, b: unimplemented_format("IA4")),
     "RGB565": (lambda a, b: unimplemented_format("RGB565")),

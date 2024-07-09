@@ -18,9 +18,10 @@ def try_export_texture(b, new_out_folder, part) -> tuple[bool, str, dict]:
         output_text += f"Part {part} interpreted as textures.\n"
         base_images.write_images_to_folder(new_out_folder)
         base_images.write_mtl_file(join(new_out_folder, 'mtl.mtl'), "")
-        return 1, output_text, None
+        out_dict = {"part": part}
+        return 1, output_text, out_dict
     except:
-        # traceback.print_exc()
+        traceback.print_exc()
         return 0, '', None
 
 def try_export_model(b, new_out_folder, part) -> tuple[bool, str, dict]:
@@ -73,7 +74,7 @@ def interpret_bytes(b:bytearray, output_folder:str, format:str):
     if len(parts_of_file) > 0 and parts_of_file[0] == 80_92_000: # base address is a c3 file
         parts_of_file = []
     for part in [x for x in range(len(parts_of_file))]:
-        print(f'extracting part {part}')
+        # print(f'extracting part {part}')
         any_outputs_in_this_part = False
         
         new_out_folder = join(output_folder, f"part {part}")
