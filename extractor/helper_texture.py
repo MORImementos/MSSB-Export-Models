@@ -71,7 +71,7 @@ class TPLTextureHeader(DataBytesInterpreter):
     format:int
     palette:int
     palette_format:int
-    DATA_FORMAT:str = '>IIHHxxxxxxxxIxBxxxxxx'
+    DATA_FORMAT:str = '>IIHHxxxxxxxxIxxBxxxxx'
 
     def __str__(self) -> str:
         t = ""
@@ -259,13 +259,13 @@ class TPLFileC4:
         byt = source[header.palette:][:0x20]
         palette = [int.from_bytes(byt[i*2:i*2+2], 'big') for i in range(0x10)]
 
-        if header.palette_format == REV_VALID_IMAGE_FORMATS['IA8']:
+        if header.palette_format == 0:
             func = TPLColorIA8
             pixel_format = "RGBA"
-        elif header.palette_format == REV_VALID_IMAGE_FORMATS['RGB565']:
+        elif header.palette_format == 1:
             func = TPLColorR5G6B5
             pixel_format = "RGB"
-        elif header.palette_format == REV_VALID_IMAGE_FORMATS['RGB5A3']:
+        elif header.palette_format == 2:
             func = TPLColorRGB5A3
             pixel_format = "RGBA"
         else:

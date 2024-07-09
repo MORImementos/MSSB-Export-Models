@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 import typing
 from helper_vector import *
-from os.path import join
+from os.path import join, exists
+from os import mkdir, listdir, rename
 from helper_c3 import SECTION_TYPES
 import numpy as np
+import shutil
 from helper_rotation import sqtTransform
 
 # need to check the Z for position/normal, might be oriented wrong direction
@@ -124,16 +126,16 @@ def obj_export(output_folder:str, section_data:dict) -> None:
     for group_name in section_data:
         # group_name is defined in the template
         data_ = section_data[group_name]
-        fname = join(output_folder, f'{group_name}.obj')
-        mtlname = join(output_folder, f'{group_name}.mtl')
-        with open(mtlname, 'w') as f:
-            pass
         dataGroups:list[OBJGroup] = []
         runningTotals = {
             'v': 0,
             'vt': 0,
             'vn': 0
         }
+        this_output_folder = join(output_folder, group_name)
+        if not exists(this_output_folder):
+            mkdir(this_output_folder)
+        objname = join(this_output_folder, f'{group_name}.obj')
         transformMeshByBones(data_)
         for mesh in data_[SECTION_TYPES.GEO]['meshes']:
             positions = [PositionVector(*x) for x in mesh['positionCoords']]
@@ -157,14 +159,33 @@ def obj_export(output_folder:str, section_data:dict) -> None:
                         face_indices.append(this_point)
                     this_face = OBJFace(face_indices)
                     faces.append(this_face)
-                this_group:OBJGroup = OBJGroup([], [], [], faces, comments=[], mtl=f"{group['textureIndex']}", name=f'{mesh_name}_group_{i}')
+                this_group:OBJGroup = OBJGroup([], [], [], faces, comments=[], mtl=f"mssbMtl.{group['textureIndex']}", name=f'{mesh_name}_group_{i}')
                 dataGroups.append(this_group)
             runningTotals['v'] += len(positions)
             runningTotals['vt'] += len(textures)
             runningTotals['vn'] += len(normals)
             objFile = OBJFile(dataGroups, f'{group_name}.mtl')
-            with open(fname, 'w') as f:
+            with open(objname, 'w') as f:
                 f.write(str(objFile))
+            # copy the mtl file from the other folder
+            if SECTION_TYPES.texture in data_:
+                mtl_section = data_[SECTION_TYPES.texture]['part']
+                existing_mtl_path = join(output_folder, f'part {mtl_section}')
+                for file in listdir(existing_mtl_path):
+                    if file[-4:] == '.mtl':
+                        shutil.move(join(existing_mtl_path, file), join(this_output_folder, f'{group_name}.mtl'))
+                    else:
+                        shutil.move(join(existing_mtl_path, file), this_output_folder)
+                # with open(existing_mtl_path, 'r') as f:
+                #     existing_mtl_data = f.readlines()
+                # mtl_path = join(this_output_folder, f'{group_name}.mtl')
+                # with open(mtl_path, 'w+') as f:
+                #     for line in existing_mtl_data:
+                #         newline = line
+                #         if line.find('map_kd') > -1:
+                #             newline = line.replace('map_kd ', 'map_kd ' + f'part {mtl_section}/').strip() + '\n'
+                #             print(newline)
+                #         f.write(newline)
 
 def transformMeshByBones(data:dict) -> None:
     # This is not correct
