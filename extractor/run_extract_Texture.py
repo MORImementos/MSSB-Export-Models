@@ -13,11 +13,22 @@ except:
 
 
 def main():
-    input_file = input("Input file name: ")
-    file_part = int(input("Input file part: "))
-    output_folder = dirname(input_file)
+    # input_file = input("Input file name: ")
+    # file_part = int(input("Input file part: "))
+    # output_folder = dirname(input_file)
+    file_part = 5
+    file_name = "07137000"
 
-    export_images(input_file, output_folder, file_part)
+    # export_images(input_file, output_folder, file_part)
+    with open(f"extractor/data/test/{file_name}.dat", "rb") as f:
+        bytes = f.read()
+    for i in range(len(get_parts_of_file(bytes))):
+        try:
+            print(f"Part {i}:")
+            write_images(bytes, f"extractor/data/test/{file_name}/{i}", i)
+            print()
+        except: continue
+    # write_images(bytes, f"extractor/data/test/07207800/{file_part}/", file_part)
 
 def get_all_tpl_headers(b:bytes) -> list[TPLTextureHeader]:
     image_count = int.from_bytes(b[:2], 'big', signed=False)
@@ -33,8 +44,11 @@ def unimplemented_format(err:str):
 
 TEXTURE_PARSE_FUNCTIONS = {
     "I4":     (lambda a, b: TPLFileI4.parse_source(a, b)),
-    "I8":     (lambda a, b: unimplemented_format("I8")),
-    "IA4":    (lambda a, b: unimplemented_format("IA4")),
+    # "I8":     (lambda a, b: unimplemented_format("I8")),
+    "I8":     (lambda a, b: TPLFileI8.parse_source(a, b)),
+    # "IA4":    (lambda a, b: unimplemented_format("IA4")),
+    "IA4":    (lambda a, b: TPLFileIA4.parse_source(a, b)),
+    "IA8":    (lambda a, b: TPLFileIA8.parse_sourse(a, b)),
     "RGB565": (lambda a, b: unimplemented_format("RGB565")),
     "RGB5A3": (lambda a, b: unimplemented_format("RGB5A3")),
     "RGBA32": (lambda a, b: unimplemented_format("RGBA32")),
@@ -48,17 +62,19 @@ def write_images(filename:str, output_dir:str, part_of_file:int, write_mtl:bool 
     images = export_images(filename, part_of_file)
     try:
         image_files = []
-        for i, (img, img_format) in enumerate(images):
+        for i, img in enumerate(images.images):
             if img is None:
                 continue
-            img:Image
-
-            img_file = join(output_dir, image_header+f"{i}.png")
+            img_format = img.img_format
+            img = img.img
+            img_file = join(output_dir, img_format+f"_{i}.png")
             ensure_dir(dirname(img_file))
 
             image_files.append(img_file)
-            img.save(img_file)
-
+            try:
+                img.save(img_file)
+            except OSError:
+                continue
         mtl_file = [(f"mssbMtl.{ii}", i_name) for ii, i_name in enumerate(image_files)]
         if write_mtl:
             return write_mtl_file(join(output_dir, image_header+"mtl.mtl"), mtl_file)
@@ -82,6 +98,7 @@ def export_images(file_bytes:bytearray, part_of_file:int) -> ExtractedTextureCol
     for header in headers:
         if not header.is_valid():
             continue
+        print(VALID_IMAGE_FORMATS[header.format])
         
         image = TEXTURE_PARSE_FUNCTIONS[VALID_IMAGE_FORMATS[header.format]](lines, header)
         

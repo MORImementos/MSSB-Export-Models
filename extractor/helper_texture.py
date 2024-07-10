@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from PIL.Image import Image, new as new_Image
 from os.path import join
 from helper_mssb_data import *
+import struct
 
 CMPR_BLOCK_SIZE = 8
 
@@ -169,29 +170,36 @@ class TPLColorRGB5A3(TPLColor):
         else:
             return cls.data[0] << 4 | cls.data[1] | cls.data[2] >> 4 | cls.data[3] << 7
 
+
+# works as far as extracting image, doesn't seem to work converting color palette yet
 class TPLFileI4:
     @staticmethod
     def get_pixel(src:bytes, s:int, t:int, width:int, palette):
-        sBlk = s >> 3
-        tBlk = t >> 2
-        widthBlks = (width >> 3)
-        base = (tBlk * widthBlks + sBlk) << 5
-        blkS = s & 7
-        blkT = t & 3
-        blkOff = (blkT << 3) + blkS
+        sBlock = s >> 3
+        tBlock = t >> 3
+        widthBlocks = (width + 7) // 8
+        base = (tBlock * widthBlocks + sBlock) << 5
+        blockS = s & 7
+        blockT = t & 7
+        blockOff = (blockT << 3) + blockS
 
-        val = src[base+blkOff]
+        offset = base + (blockOff >> 1)
+        if blockOff & 1:
+            val = src[offset] & 0x0f
+        else:
+            val = (src[offset] >> 4) & 0x0f
 
-        return palette[val]
+        # v = expand_to_8_bits(val, 4)
+        intensity = expand_to_8_bits(val, 4)
+        return (intensity, intensity, intensity, 0xFF)
     
     @staticmethod
     def parse_source(source:bytes, header: TPLTextureHeader) -> Image.Image:
         width, height = (header.width, header.height)
-        # blocks_to_read = (width//4) * (height//4) * 8
         image_data = source[header.address:]
 
-        byt = source[header.palette:][:0x200]
-        palette = [int.from_bytes(byt[i*2:i*2+2], 'big') for i in range(0x100)]
+        palette_data = source[header.palette:][:0x200]
+        palette = [int.from_bytes(palette_data[i * 2:i * 2 + 2], 'big') for i in range(0x100)]
 
         # if header.palette_format == 0: # RGB565
         #     func = TPLColorR5G6B5
@@ -200,6 +208,7 @@ class TPLFileI4:
         #     func = TPLColorIA8
         #     pixel_format = "RGB"
         # elif header.palette_format == 2: # RGB5A3
+        
         func = TPLColorRGB5A3
         pixel_format = "RGBA"
         # else:
@@ -211,16 +220,104 @@ class TPLFileI4:
 
         for t in range(height):
             for s in range(width):
-                p = TPLFileC8.get_pixel(image_data, s, t, width, palette)
+                p = TPLFileI4.get_pixel(image_data, s, t, width, palette)
                 image.putpixel((s,t), p)
         
         return image
 
+
+# haven't found one that uses it yet, so not sure if it works
 class TPLFileI8:
-    pass
+    @staticmethod
+    def get_pixel(src:bytes, s:int, t:int, width:int, palette):
+        offset = t * width + s
+        val = src[offset]
+
+        color = (val, val, val, 0xFF) if not palette else palette[val]
+
+        return color
+    
+    @staticmethod
+    def parse_source(source:bytes, header: TPLTextureHeader) -> Image.Image:
+        width, height = header.width, header.height
+        image_data = source[header.address:header.address + width * height]     
+        
+        if header.palette:
+            palette_data = source[header.palette:header.palette + 0x200]
+            palette = [int.from_bytes(palette_data[i * 2:i * 2 + 2], 'big') for i in range(0x100)]
+            func = TPLColorRGB5A3
+            palette = [func.from_int(x).data for x in palette]
+        else:
+            palette = None
+
+        pixel_format = "RGBA"
+        image = Image.new(pixel_format, (width, height))
+
+        for t in range(height):
+            for s in range(width):
+                p = TPLFileI8.get_pixel(image_data, s, t, width, palette)
+                image.putpixel((s, t), p)
+        
+        return image  
+# haven't found one that uses it yet, so not sure if it works
 
 class TPLFileIA4:
-    pass
+    @staticmethod
+    def get_pixel(src: bytes, s: int, t: int, width: int):
+        sBlock = s >> 3
+        tBlock = t >> 2
+        widthBlocks = (width + 7) / 8
+        base = (tBlock * widthBlocks + sBlock) << 5
+        blockS = s & 7
+        blockT = t & 3
+        blockOff = (blockT << 3) + blockS
+
+        offset = base + blockOff
+        val = src[offset]
+
+        intensity = expand_to_8_bits(val & 0x0f, 4)
+        alpha = expand_to_8_bits(val >> 4, 4)
+
+        return (intensity, intensity, intensity, alpha)
+    
+    @staticmethod
+    def parse_source(source: bytes, header: 'TPLTextureHeader') -> Image.Image:
+        width, height = header.width, header.height
+        image_data = source[header.address:header.address + (width * height)]
+
+        image = Image.new("RGBA", (width, height))
+
+        for t in range(height):
+            for s in range(width):
+                p = TPLFileIA4.get_pixel(image_data, s, t, width)
+                image.putpixel((s, t), p)
+        
+        return image
+
+# haven't found one that uses it yet, so not sure if it works
+class TPLFileIA8:
+    @staticmethod
+    def get_pixel(src: bytes, s: int, t: int, width: int):
+        offset = (t * width + s) * 2
+        texel = struct.unpack('>H', src[offset:offset+2])[0]
+        intensity = texel >> 8
+        alpha = texel & 0xFF
+
+        return (intensity, intensity, intensity, alpha)
+    
+    @staticmethod
+    def parse_source(source: bytes, header: 'TPLTextureHeader') -> Image.Image:
+        width, height = header.width, header.height
+        image_data = source[header.address:header.address + (width * height * 2)]
+
+        image = Image.new("RGBA", (width, height))
+
+        for t in range(height):
+            for s in range(width):
+                p = TPLFileIA8.get_pixel(image_data, s, t, width)
+                image.putpixel((s, t), p)
+        
+        return image
 
 class TPLFileRGB565:
     pass
@@ -400,10 +497,13 @@ class TPLFileCMPR:
 # Helper functions implemented from https://github.com/encounter/aurora/blob/main/lib/gfx/texture_convert.cpp
 
 def expand_to_8_bits(val: int, num_bits: int) -> int:
+    if num_bits == 4:
+        return (val << 4) | val
     if num_bits == 3:
-        return (val << (8 - 3)) | (val << (8 - 6)) | (val >> (9 - 8))
+        return (val << 5) | (val << 2) | (val >> 1)
     else:
         return (val << (8 - num_bits)) | (val >> ((num_bits * 2) - 8))
+
     
 def S3TCBlend(a: int, b: int):
     return ((((a << 1) + a) + ((b << 2) + b)) >> 3)
