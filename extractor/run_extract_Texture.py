@@ -17,7 +17,7 @@ def main():
     # file_part = int(input("Input file part: "))
     # output_folder = dirname(input_file)
     file_part = 5
-    file_name = "07137000"
+    file_name = "06CFD000"
 
     # export_images(input_file, output_folder, file_part)
     with open(f"extractor/data/test/{file_name}.dat", "rb") as f:
@@ -98,7 +98,7 @@ def export_images(file_bytes:bytearray, part_of_file:int) -> ExtractedTextureCol
     for header in headers:
         if not header.is_valid():
             continue
-        print(VALID_IMAGE_FORMATS[header.format])
+        # print(f"{VALID_IMAGE_FORMATS[header.format]} @ {hex(header.address)}")
         
         image = TEXTURE_PARSE_FUNCTIONS[VALID_IMAGE_FORMATS[header.format]](lines, header)
         

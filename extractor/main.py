@@ -163,143 +163,277 @@ def interpret_version(output_folder:str, results_path:str, zzzz_file:str, discov
         offset_to_name = {}
         offset_to_format = {}
 
+    def mean(x):
+        return sum(x) // len(x) 
+
+    def process_files(files, folder):
+        for json_entry in progressbar.progressbar(files):
+            entry = DataEntry.from_dict(json_entry)
+            if entry.file != zzzz_file:
+                continue
+
+            location = f"{entry.disk_location:08X}"
+            default_folder_name = location
+            renamed_folder = offset_to_name.get(entry.disk_location, default_folder_name)
+
+            this_folder = join(folder, renamed_folder)
+            ensure_dir(this_folder)
+            output_file_name = join(this_folder, f"{location}.dat")
+            if folder == REFERENCED_FOLDER:
+                if not exists(output_file_name):
+                    this_data = ZZZZ_DAT[entry.disk_location : entry.disk_location + entry.compressed_size]
+                    if len(this_data) == entry.compressed_size:
+                        decompressed_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
+
+                        this_format = offset_to_format.get(entry.disk_location, None)
+                        print(this_folder)
+                        print(this_format)
+                        interpret_bytes(decompressed_bytes, this_folder, this_format)
+
+                        write_bytes(decompressed_bytes, output_file_name)
+            elif folder == UNREFERENCED_FOLDER:
+                mean = lambda x : sum(x) // len(x) 
+                if not exists(output_file_name):
+                    decompressor = RollingDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size)
+                    parts_of_file = get_parts_of_file(decompressor)
+                    
+                    if len(parts_of_file) > 1:
+                        if len(parts_of_file) > 0 and parts_of_file[0] == 80_92_000: # base address is a c3 file
+                            parts_of_file = []
+                        else:
+                            # calculate the average size of a section, and decompress that much past the last part start
+                            # hopefully should allow for faster decompressing
+                            average_size = mean([parts_of_file[x+1] - parts_of_file[x] for x in range(len(parts_of_file) - 1)])
+                            try:
+                                decompressed_bytes = decompressor[0:parts_of_file[-1] + average_size]
+                            except:
+                                decompressed_bytes = decompressor
+                    else:
+                        decompressed_bytes = decompressor
+
+                    interpret_bytes(decompressed_bytes, this_folder)
+
+                    write_bytes(decompressor.outputdata, output_file_name)
+            elif ADGCFORMS_FOLDER:
+                if not exists(output_file_name):
+
+                    if entry.compression_flag == 0:
+                        these_bytes = ZZZZ_DAT[entry.disk_location : entry.disk_location + entry.original_size]
+                    else:
+                        these_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
+
+                    interpret_bytes(these_bytes, this_folder)
+
+                    write_bytes(these_bytes, output_file_name)
+
+            elif folder == RAW_FOLDER:
+                if not exists(output_file_name):
+                    these_bytes = ZZZZ_DAT[entry.disk_location:entry.disk_location+entry.compressed_size]
+
+                    interpret_bytes(these_bytes, this_folder)
+
+                    write_bytes(these_bytes, output_file_name)
+            # if not exists(output_file_name):
+            #     if entry.compression_flag == 0:
+            #         these_bytes = ZZZZ_DAT[entry.disk_location: entry.disk_location + entry.original_size]
+            #         write_bytes(these_bytes, output_file_name)
+            #     else:
+            #         decompressed_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
+            #         this_format = offset_to_format.get(entry.disk_location, None)
+            #         interpret_bytes(decompressed_bytes, this_folder, this_format)
+            #         write_bytes(decompressed_bytes, output_file_name)
+            #     # Calculate the mean size of sections for faster decompression
+            #     parts_of_file = get_parts_of_file(decompressed_bytes)
+            #     if len(parts_of_file) > 1:
+            #         average_size = mean([parts_of_file[x+1] - parts_of_file[x] for x in range(len(parts_of_file) - 1)])
+            #         try:
+            #             decompressed_bytes = decompressed_bytes[:parts_of_file[-1] + average_size]
+            #         except:
+            #             decompressed_bytes = decompressed_bytes
+            #     interpret_bytes(decompressed_bytes, this_folder, this_format)
+            #     write_bytes(decompressed_bytes, output_file_name)
+
     print("Interpreting referenced compressed files... (should take about 10 minutes)")
-    for json_entry in progressbar.progressbar(found_files['GameReferencedCompressedFiles']):
-        entry = DataEntry.from_dict(json_entry)
-        if entry.file != zzzz_file:
-            continue
-
-        this_file = f'{entry.disk_location:08X}'
-        this_folder = join(REFERENCED_FOLDER, this_file)
-
-        renamed_file = offset_to_name.get(entry.disk_location, None)
-        if renamed_file != None:
-            renamed_folder = join(REFERENCED_FOLDER, renamed_file)
-
-            if exists(this_folder) and not exists(renamed_folder):
-                rename(this_folder, renamed_folder)
-
-            this_folder = renamed_folder
-            this_file = renamed_file
-
-        output_file_name = join(this_folder, this_file) + ".dat"
-        if not exists(output_file_name):
-            this_data = ZZZZ_DAT[entry.disk_location : entry.disk_location + entry.compressed_size]
-            if len(this_data) == entry.compressed_size:
-                decompressed_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
-
-                this_format = offset_to_format.get(entry.disk_location, None)
-                print(this_folder)
-                print(this_format)
-                interpret_bytes(decompressed_bytes, this_folder, this_format)
-
-                write_bytes(decompressed_bytes, output_file_name)
-    
-    mean = lambda x : sum(x) // len(x) 
+    process_files(found_files['GameReferencedCompressedFiles'], REFERENCED_FOLDER)
 
     print("Interpreting unreferenced compressed files... (this will take 30-45 minutes)")
-    for json_entry in progressbar.progressbar(found_files['UnreferencedCompressedFiles']):
-        entry = DataEntry.from_dict(json_entry)
-        if entry.file != zzzz_file:
-            continue
-        
-        this_file = f'{entry.disk_location:08X}'
-        this_folder = join(UNREFERENCED_FOLDER, this_file)
-
-        renamed_file = offset_to_name.get(entry.disk_location, None)
-        if renamed_file != None:
-            renamed_folder = join(UNREFERENCED_FOLDER, renamed_file)
-
-            if exists(this_folder) and not exists(renamed_folder):
-                rename(this_folder, renamed_folder)
-            
-            this_folder = renamed_folder
-            this_file = renamed_file
-
-        output_file_name = join(this_folder, this_file) + ".dat"
-
-        if not exists(output_file_name):
-            decompressor = RollingDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size)
-            parts_of_file = get_parts_of_file(decompressor)
-            
-            if len(parts_of_file) > 1:
-                if len(parts_of_file) > 0 and parts_of_file[0] == 80_92_000: # base address is a c3 file
-                    parts_of_file = []
-                else:
-                    # calculate the average size of a section, and decompress that much past the last part start
-                    # hopefully should allow for faster decompressing
-                    average_size = mean([parts_of_file[x+1] - parts_of_file[x] for x in range(len(parts_of_file) - 1)])
-                    try:
-                        decompressed_bytes = decompressor[0:parts_of_file[-1] + average_size]
-                    except:
-                        decompressed_bytes = decompressor
-            else:
-                decompressed_bytes = decompressor
-
-            interpret_bytes(decompressed_bytes, this_folder)
-
-            write_bytes(decompressor.outputdata, output_file_name)
+    process_files(found_files['UnreferencedCompressedFiles'], UNREFERENCED_FOLDER)
 
     print("Interpreting AdGCForms files...")
-    for json_entry in progressbar.progressbar(found_files['AdGCForms']):
-        entry = DataEntry.from_dict(json_entry)
-        if entry.file != zzzz_file:
-            continue
-        
-        this_file = f'{entry.disk_location:08X}'
-        this_folder = join(ADGCFORMS_FOLDER, this_file)
-
-        renamed_file = offset_to_name.get(entry.disk_location, None)
-        if renamed_file != None:
-            renamed_folder = join(ADGCFORMS_FOLDER, renamed_file)
-
-            if exists(this_folder) and not exists(renamed_folder):
-                rename(this_folder, renamed_folder)
-            
-            this_folder = renamed_folder
-            this_file = renamed_file
-
-        output_file_name = join(this_folder, this_file) + ".dat"
-
-        if not exists(output_file_name):
-
-            if entry.compression_flag == 0:
-                these_bytes = ZZZZ_DAT[entry.disk_location : entry.disk_location + entry.original_size]
-            else:
-                these_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
-
-            interpret_bytes(these_bytes, this_folder)
-
-            write_bytes(these_bytes, output_file_name)
+    process_files(found_files['AdGCForms'], ADGCFORMS_FOLDER)
 
     print("Interpreting referenced raw files...")
-    for json_entry in progressbar.progressbar(found_files['GameReferencedRawFiles']):
-        entry = DataEntry.from_dict(json_entry)
-        if entry.file != zzzz_file:
-            continue
+    process_files(found_files['GameReferencedRawFiles'], RAW_FOLDER)
+
+        # if not exists(output_file_name):
+        #     if entry.compression_flag == 0:
+        #         these_bytes = ZZZZ_DAT[entry.disk_location: entry.disk_location + entry.original_size]
+        #         write_bytes(these_bytes, output_file_name)
+        #     else:
+        #         decompressed_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
+        #         this_format = offset_to_format.get(entry.disk_location, None)
+        #         interpret_bytes(decompressed_bytes, this_folder, this_format)
+        #         write_bytes(decompressed_bytes, output_file_name)
+
+
+    # print("Interpreting referenced compressed files... (should take about 10 minutes)")
+    # output_file_name = process_files(found_files['GameReferencedCompressedFiles'])
+
+
+    # for json_entry in progressbar.progressbar(found_files['GameReferencedCompressedFiles']):
+    #     entry = DataEntry.from_dict(json_entry)
+    #     if entry.file != zzzz_file:
+    #         continue
         
-        this_file = f'{entry.disk_location:08X}'
-        this_folder = join(RAW_FOLDER, this_file)
+    #     location = f"{entry.disk_location:08X}"
+    #     default_folder_name = location
+    #     this_file = f'{entry.disk_location:08X}'
+    #     this_folder = join(REFERENCED_FOLDER, this_file)
 
-        renamed_file = offset_to_name.get(entry.disk_location, None)
+    #     renamed_file = offset_to_name.get(entry.disk_location, None)
+    #     if renamed_file != None:
+    #         renamed_folder = join(REFERENCED_FOLDER, renamed_file)
 
-        if renamed_file != None:
-            renamed_folder = join(RAW_FOLDER, renamed_file)
+    #         if exists(this_folder) and not exists(renamed_folder):
+    #             rename(this_folder, renamed_folder)
 
-            if exists(this_folder) and not exists(renamed_folder):
-                rename(this_folder, renamed_folder)
+    #         this_folder = renamed_folder
+    #         this_file = renamed_file
+    #     this_folder = join(folder, renamed_folder)
+    #     output_file_name = join(this_folder, f"{location}.dat")
+
+    # if not exists(output_file_name):
+    #     this_data = ZZZZ_DAT[entry.disk_location : entry.disk_location + entry.compressed_size]
+    #     if len(this_data) == entry.compressed_size:
+    #         decompressed_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
+
+    #         this_format = offset_to_format.get(entry.disk_location, None)
+    #         print(this_folder)
+    #         print(this_format)
+    #         interpret_bytes(decompressed_bytes, this_folder, this_format)
+
+    #         write_bytes(decompressed_bytes, output_file_name)
+
+    # mean = lambda x : sum(x) // len(x) 
+
+    # print("Interpreting unreferenced compressed files... (this will take 30-45 minutes)")
+    # output_file_name = process_files(found_files['UnreferencedCompressedFiles'], UNREFERENCED_FOLDER)
+
+
+
+    # print("Interpreting unreferenced compressed files... (this will take 30-45 minutes)")
+    # for json_entry in progressbar.progressbar(found_files['UnreferencedCompressedFiles']):
+    #     entry = DataEntry.from_dict(json_entry)
+    #     if entry.file != zzzz_file:
+    #         continue
+        
+    #     this_file = f'{entry.disk_location:08X}'
+    #     this_folder = join(UNREFERENCED_FOLDER, this_file)
+
+    #     renamed_file = offset_to_name.get(entry.disk_location, None)
+    #     if renamed_file != None:
+    #         renamed_folder = join(UNREFERENCED_FOLDER, renamed_file)
+
+    #         if exists(this_folder) and not exists(renamed_folder):
+    #             rename(this_folder, renamed_folder)
             
-            this_folder = renamed_folder
-            this_file = renamed_file
+    #         this_folder = renamed_folder
+    #         this_file = renamed_file
 
-        output_file_name = join(this_folder, this_file) + ".dat"
+    #     output_file_name = join(this_folder, this_file) + ".dat"
 
-        if not exists(output_file_name):
-            these_bytes = ZZZZ_DAT[entry.disk_location:entry.disk_location+entry.compressed_size]
+    # if not exists(output_file_name):
+    #     decompressor = RollingDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size)
+    #     parts_of_file = get_parts_of_file(decompressor)
+        
+    #     if len(parts_of_file) > 1:
+    #         if len(parts_of_file) > 0 and parts_of_file[0] == 80_92_000: # base address is a c3 file
+    #             parts_of_file = []
+    #         else:
+    #             # calculate the average size of a section, and decompress that much past the last part start
+    #             # hopefully should allow for faster decompressing
+    #             average_size = mean([parts_of_file[x+1] - parts_of_file[x] for x in range(len(parts_of_file) - 1)])
+    #             try:
+    #                 decompressed_bytes = decompressor[0:parts_of_file[-1] + average_size]
+    #             except:
+    #                 decompressed_bytes = decompressor
+    #     else:
+    #         decompressed_bytes = decompressor
 
-            interpret_bytes(these_bytes, this_folder)
+    #     interpret_bytes(decompressed_bytes, this_folder)
 
-            write_bytes(these_bytes, output_file_name)
+    #     write_bytes(decompressor.outputdata, output_file_name)
+
+
+    # print("Interpreting AdGCForms files...")
+    # output_file_name = process_files(found_files['AdGCForms'], ADGCFORMS_FOLDER)
+
+
+    # print("Interpreting AdGCForms files...")
+    # for json_entry in progressbar.progressbar(found_files['AdGCForms']):
+    #     entry = DataEntry.from_dict(json_entry)
+    #     if entry.file != zzzz_file:
+    #         continue
+        
+    #     this_file = f'{entry.disk_location:08X}'
+    #     this_folder = join(ADGCFORMS_FOLDER, this_file)
+
+    #     renamed_file = offset_to_name.get(entry.disk_location, None)
+    #     if renamed_file != None:
+    #         renamed_folder = join(ADGCFORMS_FOLDER, renamed_file)
+
+    #         if exists(this_folder) and not exists(renamed_folder):
+    #             rename(this_folder, renamed_folder)
+            
+    #         this_folder = renamed_folder
+    #         this_file = renamed_file
+
+    #     output_file_name = join(this_folder, this_file) + ".dat"
+
+    # if not exists(output_file_name):
+
+    #     if entry.compression_flag == 0:
+    #         these_bytes = ZZZZ_DAT[entry.disk_location : entry.disk_location + entry.original_size]
+    #     else:
+    #         these_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
+
+    #     interpret_bytes(these_bytes, this_folder)
+
+    #     write_bytes(these_bytes, output_file_name)
+
+
+
+    # print("Interpreting referenced raw files...")
+    # output_file_name = process_files(found_files['GameReferencedRawFiles'], RAW_FOLDER)
+
+    # print("Interpreting referenced raw files...")
+    # for json_entry in progressbar.progressbar(found_files['GameReferencedRawFiles']):
+    #     entry = DataEntry.from_dict(json_entry)
+    #     if entry.file != zzzz_file:
+    #         continue
+        
+    #     this_file = f'{entry.disk_location:08X}'
+    #     this_folder = join(RAW_FOLDER, this_file)
+
+    #     renamed_file = offset_to_name.get(entry.disk_location, None)
+
+    #     if renamed_file != None:
+    #         renamed_folder = join(RAW_FOLDER, renamed_file)
+
+    #         if exists(this_folder) and not exists(renamed_folder):
+    #             rename(this_folder, renamed_folder)
+            
+    #         this_folder = renamed_folder
+    #         this_file = renamed_file
+
+    #     output_file_name = join(this_folder, this_file) + ".dat"
+
+    # if not exists(output_file_name):
+    #     these_bytes = ZZZZ_DAT[entry.disk_location:entry.disk_location+entry.compressed_size]
+
+    #     interpret_bytes(these_bytes, this_folder)
+
+    #     write_bytes(these_bytes, output_file_name)
 
 
 if __name__ == "__main__": main()

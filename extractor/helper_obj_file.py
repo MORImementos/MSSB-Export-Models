@@ -175,7 +175,10 @@ def obj_export(output_folder:str, section_data:dict) -> None:
                     if file[-4:] == '.mtl':
                         shutil.move(join(existing_mtl_path, file), join(this_output_folder, f'{group_name}.mtl'))
                     else:
-                        shutil.move(join(existing_mtl_path, file), this_output_folder)
+                        try:
+                            shutil.move(join(existing_mtl_path, file), this_output_folder)
+                        except shutil.Error:
+                            continue
                 # with open(existing_mtl_path, 'r') as f:
                 #     existing_mtl_data = f.readlines()
                 # mtl_path = join(this_output_folder, f'{group_name}.mtl')
