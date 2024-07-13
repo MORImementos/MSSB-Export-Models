@@ -31,6 +31,7 @@ def try_export_model(b, new_out_folder, part) -> tuple[bool, str, dict]:
         output_text += f"Part {part} interpreted as model.\n"
         return 1, output_text, out_dict
     except:
+        traceback.print_exc()
         return 0, '', None
 
 def try_export_actor(b, new_out_folder, part) -> tuple[bool, str, dict]:
@@ -179,15 +180,13 @@ def interpret_version(output_folder:str, results_path:str, zzzz_file:str, discov
             this_folder = join(folder, renamed_folder)
             ensure_dir(this_folder)
             output_file_name = join(this_folder, f"{location}.dat")
+            this_format = offset_to_format.get(entry.disk_location, None)
             if folder == REFERENCED_FOLDER:
                 if not exists(output_file_name):
                     this_data = ZZZZ_DAT[entry.disk_location : entry.disk_location + entry.compressed_size]
                     if len(this_data) == entry.compressed_size:
                         decompressed_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
 
-                        this_format = offset_to_format.get(entry.disk_location, None)
-                        print(this_folder)
-                        print(this_format)
                         interpret_bytes(decompressed_bytes, this_folder, this_format)
 
                         write_bytes(decompressed_bytes, output_file_name)
@@ -211,7 +210,7 @@ def interpret_version(output_folder:str, results_path:str, zzzz_file:str, discov
                     else:
                         decompressed_bytes = decompressor
 
-                    interpret_bytes(decompressed_bytes, this_folder)
+                    interpret_bytes(decompressed_bytes, this_folder, this_format)
 
                     write_bytes(decompressor.outputdata, output_file_name)
             elif ADGCFORMS_FOLDER:
@@ -222,7 +221,7 @@ def interpret_version(output_folder:str, results_path:str, zzzz_file:str, discov
                     else:
                         these_bytes = ArchiveDecompressor(ZZZZ_DAT[entry.disk_location:], entry.lookback_bit_size, entry.repetition_bit_size, entry.original_size).decompress()
 
-                    interpret_bytes(these_bytes, this_folder)
+                    interpret_bytes(these_bytes, this_folder, this_format)
 
                     write_bytes(these_bytes, output_file_name)
 
@@ -230,7 +229,7 @@ def interpret_version(output_folder:str, results_path:str, zzzz_file:str, discov
                 if not exists(output_file_name):
                     these_bytes = ZZZZ_DAT[entry.disk_location:entry.disk_location+entry.compressed_size]
 
-                    interpret_bytes(these_bytes, this_folder)
+                    interpret_bytes(these_bytes, this_folder, this_format)
 
                     write_bytes(these_bytes, output_file_name)
             # if not exists(output_file_name):

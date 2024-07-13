@@ -95,13 +95,19 @@ def export_images(file_bytes:bytearray, part_of_file:int) -> ExtractedTextureCol
     
     headers = get_all_tpl_headers(lines)
     images = []
-    for header in headers:
+    for i, header in enumerate(headers):
+        # print(f'{i}: {header.palette_format}')
         if not header.is_valid():
+        #     print('--------------')
+        #     print(header.format)
+        #     print(header.width)
+        #     print(header.height)
+            images.append(ExtractedTexture(dummyImage(), -1))
             continue
         # print(f"{VALID_IMAGE_FORMATS[header.format]} @ {hex(header.address)}")
-        
+
         image = TEXTURE_PARSE_FUNCTIONS[VALID_IMAGE_FORMATS[header.format]](lines, header)
-        
+
         images.append(ExtractedTexture(image, VALID_IMAGE_FORMATS[header.format]))
     return ExtractedTextureCollection(images)
 
@@ -114,7 +120,7 @@ def write_mtl_file(file_name:str, mtls:list[tuple[str, str]], cut_at_base_folder
             path = path.replace("\\", "\\\\")
 
         mtl_file += f"newmtl {name}\n"
-        mtl_file += f"map_kd {path}\n"
+        mtl_file += f"map_Kd {path}\n"
         mtl_file += "\n"
 
     write_text(mtl_file, file_name)
