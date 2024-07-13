@@ -58,7 +58,7 @@ class ExtractedTextureCollection:
             path = path.replace("\\", "\\\\")
 
             output += (f"newmtl mssbMtl.{i}\n")
-            output += (f"map_kd {path}\n")
+            output += (f"map_Kd {path}\n")
             output += (f"# Height: {tex.img.height}, Width: {tex.img.width}, Format: {tex.img_format}\n")
             output += ("\n")
     
@@ -72,7 +72,7 @@ class TPLTextureHeader(DataBytesInterpreter):
     format:int
     palette:int
     palette_format:int
-    DATA_FORMAT:str = '>IIHHxxxxxxxxIxxBxxxxx'
+    DATA_FORMAT:str = '>IIHHxxxxxxxxxxxBxxBxxxxx'
 
     def __str__(self) -> str:
         t = ""
@@ -368,7 +368,9 @@ class TPLFileC4:
         else:
             assert(False)
 
+        # print(', '.join(hex(x) for x in palette))
         palette = [func.from_int(x).data for x in palette]
+        # print(', '.join(['(' + ','.join(str(y) for y in x) + ')' for x in palette]))
 
         image = new_Image(pixel_format, (width, height))
 
@@ -551,6 +553,9 @@ class DXT1Block:
     color2: int # u16
     lines: list # u8[4]
 
+
+def dummyImage():
+    return new_Image('1', (1, 1))
 
 # from dolphin
 

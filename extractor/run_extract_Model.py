@@ -132,61 +132,28 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
 
         dods = [DisplayObjectDisplayState(file_bytes, dod.offsetToDisplayStateList + i * DisplayObjectDisplayState.SIZE_OF_STRUCT) for i in range(dod.numberOfDisplayStateEntries)]
         all_draws = []
-        # print(d)
 
-        texture_index = None
-        matrix_src = None
-        matrix_dst = None
         groups_arr = mesh_dict['groups'] = []
+        stateHelper = DisplayStateSettingHelper(log_file)
         for dod_i, dod in enumerate(dods):
             dod.add_offset(dol_offset)
-            # print(dod)
             log_to_file(log_file, f"DisplayObjectDisplayState {i}.{dod_i}: {dod}")
 
-            if dod.stateID == 1: # Texture
-                h = hex(dod.setting)[2:]
-                if len(h) == 8 and h[2:4] == "11":
-                    texture_index = dod.setting & 0xff
-                    log_to_file(log_file, f"Loading Texture {texture_index}")
-            elif dod.stateID == 2: # Vertex Description
-
-                size_conversion = {
-                0:0,
-                2:1,
-                3:2
-                }
-                all_components = [(dod.setting >> (j * 2)) & 3 for j in range(13)]
-                all_sizes = [size_conversion[j] for j in all_components]
-                comps = {
-                    "vector_size": sum(all_sizes),
-                    "pos_size": all_sizes[1],
-                    "pos_offset": sum(all_sizes[:1]),
-                    "norm_size": all_sizes[2],
-                    "norm_offset": sum(all_sizes[:2]),
-                    "uv_size": all_sizes[5],
-                    "uv_offset": sum(all_sizes[:5]),
-                }
-                log_to_file(log_file, f"Vertex Description for Descriptor {i}.{dod_i}: {comps}")
-
-
-            elif dod.stateID == 3: # Matrix Load
-                matrix_src = dod.setting >> 16
-                matrix_dst = dod.setting & 0xffff
-                log_to_file(log_file, f"Matrix Load: Source {matrix_src}, Destination {matrix_dst}")
-
-            else:
-                raise ValueError(f"Unknown Display Call: {dod.stateID}")
+            stateHelper.setSetting(dod.stateID, dod.setting)
 
             if(dod.offsetToPrimitiveList != 0):
-                tris = parse_indices(file_bytes[dod.offsetToPrimitiveList:][:dod.byteLengthPrimitiveList], **comps)
+                tris = parse_indices(file_bytes[dod.offsetToPrimitiveList:][:dod.byteLengthPrimitiveList], stateHelper.getComponents())
                 # these_tris.extend(tris)
-                all_draws.append((tris, texture_index, [f"Using Texture {texture_index}", f"Using Matrix {matrix_src}, {matrix_dst}", f"Display Object {dod_i}"]))
+                all_draws.append((tris, stateHelper.getTextureIndex(), 
+                    [f"Using Texture {stateHelper.getTextureIndex()}", 
+                    f"Using Matrix {stateHelper.getSrcMtxIndex()}, {stateHelper.getDestMtxIndex()}",
+                    f"Display Object {dod_i}"]))
                 log_to_file(log_file, f"Primitive List for Descriptor {i}.{dod_i}: {tris}")
                 group_dict = dict()
                 groups_arr.append(group_dict)
-                group_dict['textureIndex'] = texture_index
-                group_dict['matrixSrc'] = matrix_src
-                group_dict['matrixDst'] = matrix_dst
+                group_dict['textureIndex'] = stateHelper.getTextureIndex(0)
+                group_dict['matrixSrc'] = stateHelper.getSrcMtxIndex()
+                group_dict['matrixDst'] = stateHelper.getDestMtxIndex()
                 tris_list = group_dict['triangles'] = []
                 for face in tris:
                     tri_dict = dict()
@@ -297,14 +264,14 @@ def parse_strip(l: list, cls=None) -> list:
     else:
         return [cls(*x) for x in to_return]
 
-def parse_indices(b: bytes, **kwargs) -> list[OBJFace]:
-    vector_size = kwargs["vector_size"]
-    pos_size = kwargs["pos_size"]
-    pos_offset = kwargs["pos_offset"]
-    norm_size = kwargs["norm_size"]
-    norm_offset = kwargs["norm_offset"]
-    uv_size = kwargs["uv_size"]
-    uv_offset = kwargs["uv_offset"]
+def parse_indices(b: bytes, components) -> list[OBJFace]:
+    vector_size = components["vector_size"]
+    pos_size = components["pos_size"]
+    pos_offset = components["pos_offset"]
+    norm_size = components["norm_size"]
+    norm_offset = components["norm_offset"]
+    uv_size = components["uv_size"][0]
+    uv_offset = components["uv_offset"][0]
     offset = 0
 
     faces_to_return = []
@@ -326,9 +293,8 @@ def parse_indices(b: bytes, **kwargs) -> list[OBJFace]:
             assert(command & 0x7 == 0)
             count = int.from_bytes(b[offset:][:2], 'big')
             offset += 2
-            for i in range(count):
+            for _ in range(count):
                 v = b[offset:][:vector_size]
-                vertex_parts = []
                 if pos_size > 0:
                     pos = int.from_bytes(v[pos_offset:][:pos_size], 'big')
                 else:
