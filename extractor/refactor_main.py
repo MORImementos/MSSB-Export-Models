@@ -1,14 +1,16 @@
-from helper_mssb_data import DataEntry, RollingDecompressor, ensure_dir, write_bytes, ArchiveDecompressor, get_parts_of_file, write_text
+from structs.compression import DataEntry, RollingDecompressor, ArchiveDecompressor
+from helpers import ensure_dir, write_bytes, get_parts_of_file, write_text
 from os.path import join, exists
 from os import rename
-from run_extract_Texture import export_images
-from run_extract_Model import *
-from run_extract_Actor import export_actor
-from run_file_discovery import discover_US_files, discover_beta_files, discover_JP_files, discover_EU_files, discover_family_files
+from run.extract_texture import export_images
+from run.extract_model import export_model
+from run.extract_actor import export_actor
+from run.file_discovery import discover_US_files, discover_beta_files, discover_JP_files, discover_EU_files, discover_family_files
 import json, progressbar, traceback, os, shutil
-from run_draw_pic import draw_pic
-from helper_file_system import *
-from helper_c3 import SECTION_TYPES, SECTION_TEMPLATES
+from run.draw_pic import draw_pic
+from helpers.file_system import *
+from constants.c3 import SECTION_TEMPLATES, SECTION_TYPES
+from structs import OBJ
 
 def try_export_texture(b, new_out_folder, part) -> tuple[bool, str, dict]:
     try:
@@ -109,7 +111,7 @@ def interpret_bytes(b:bytearray, output_folder:str, format:str):
         write_text(output_text + "No output types found.\n", join(output_folder, "notes.txt"))
 
     if section_data is not None:
-        obj_export(output_folder, section_data)
+        OBJ.obj_export(output_folder, section_data)
 
 def interpret_US():
     print('Looking at US files...')

@@ -1,10 +1,6 @@
 from os.path import dirname, join, exists
-from helper_vector import *
-from helper_obj_file import *
-from helper_c3 import *
-from helper_mssb_data import *
-
-from helper_mssb_data import get_parts_of_file, float_from_fixedpoint
+from structs import GPL, DO, DS, OBJ
+from helpers import get_parts_of_file, float_from_fixedpoint, get_c_str, copyAttributesToDict, write_text
 import os, json
 
 def main():
@@ -31,20 +27,20 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
     json_dict = dict()
 
     base_gpl_address = parts_of_file[part_of_file]
-    geo_header = GeoPaletteHeader(file_bytes, base_gpl_address)
+    geo_header = GPL.GeoPaletteHeader(file_bytes, base_gpl_address)
     log_to_file(log_file, f"GeoPaletteHeader: {geo_header}")
     log_to_file(log_file, f"Base GPL Address: {hex(base_gpl_address)}")
     geo_header.add_offset(base_gpl_address)
 
-    descriptors:list[GeoDescriptor] = []
+    descriptors:list[GPL.GeoDescriptor] = []
 
     json_dict['numberOfMeshes'] = geo_header.numberOfGeometryDescriptors
 
     mesh_arr = json_dict['meshes'] = []
 
     for i in range(geo_header.numberOfGeometryDescriptors):
-        gd_offset = geo_header.offsetToGeometryDescriptorArray + i * GeoDescriptor.SIZE_OF_STRUCT
-        d = GeoDescriptor(file_bytes, gd_offset)
+        gd_offset = geo_header.offsetToGeometryDescriptorArray + i * GPL.GeoDescriptor.SIZE_OF_STRUCT
+        d = GPL.GeoDescriptor(file_bytes, gd_offset)
 
         d.add_offset(base_gpl_address)
         MAX_NAME_LENGTH = 100
@@ -59,12 +55,12 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         mesh_dict['name'] = d.name
 
         dol_offset = d.offsetToDisplayObject
-        dol = DisplayObjectLayout(file_bytes, dol_offset)
+        dol = DO.DisplayObjectLayout(file_bytes, dol_offset)
         dol.add_offset(dol_offset)
         log_to_file(log_file, f"DisplayObjectLayout {i}: {dol}")
         copyAttributesToDict(dol, mesh_dict, ['numberOfTextures'])
 
-        dop = DisplayObjectPositionHeader(file_bytes, dol.OffsetToPositionData)
+        dop = DO.DisplayObjectPositionHeader(file_bytes, dol.OffsetToPositionData)
         dop.add_offset(dol_offset)
         log_to_file(log_file, f"DisplayObjectPositionHeader {i}: {dop}")
 
@@ -75,20 +71,20 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             dop.componentSize * dop.numberOfComponents,
             dop.componentShift,
             dop.componentSigned,
-            PositionVector
+            OBJ.PositionVector
             )
         log_to_file(log_file, f"Positions for Descriptor {i}: {poss}")
 
         mesh_dict['positionCoords'] = [list(x) for x in poss]
 
-        doc = DisplayObjectColorHeader(file_bytes, dol.OffsetToColorData)
+        doc = DO.DisplayObjectColorHeader(file_bytes, dol.OffsetToColorData)
         doc.add_offset(dol_offset)
         log_to_file(log_file, f"DisplayObjectColorHeader {i}: {doc}")
 
         dot = []
         tex_coords = []
         for i in range(dol.numberOfTextures):
-            dd = DisplayObjectTextureHeader(file_bytes, dol.OffsetToTextureData + i * DisplayObjectTextureHeader.SIZE_OF_STRUCT)
+            dd = DO.DisplayObjectTextureHeader(file_bytes, dol.OffsetToTextureData + i * DO.DisplayObjectTextureHeader.SIZE_OF_STRUCT)
             dd.add_offset(dol_offset)
 
             dd.name = get_c_str(file_bytes, dd.offsetToTexturePaletteFileName)
@@ -104,13 +100,13 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
                     dd.componentSize * dd.numberOfComponents,
                     dd.componentShift, 
                     dd.componentSigned,
-                    TextureVector
+                    OBJ.TextureVector
                     )
         log_to_file(log_file, f"Texture coordinates for Descriptor {i}: {tex_coords}")
 
         mesh_dict['textureCoords'] = [list(x) for x in tex_coords]
 
-        doli = DisplayObjectLightingHeader(file_bytes, dol.OffsetToLightingData)
+        doli = DO.DisplayObjectLightingHeader(file_bytes, dol.OffsetToLightingData)
         doli.add_offset(dol_offset)
         log_to_file(log_file, f"DisplayObjectLightingHeader {i}: {doli}")
 
@@ -121,72 +117,39 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             doli.componentSize * doli.numberOfComponents, 
             doli.componentShift, 
             doli.componentSigned,
-            NormalVector
+            OBJ.NormalVector
             )
         log_to_file(log_file, f"Normals for Descriptor {i}: {norms}")
         mesh_dict['normals'] = [list(x) for x in norms]
 
-        dod = DisplayObjectDisplayHeader(file_bytes, dol.OffsetToDisplayData)
+        dod = DO.DisplayObjectDisplayHeader(file_bytes, dol.OffsetToDisplayData)
         dod.add_offset(dol_offset)
         log_to_file(log_file, f"DisplayObjectDisplayHeader {i}: {dod}")
 
-        dods = [DisplayObjectDisplayState(file_bytes, dod.offsetToDisplayStateList + i * DisplayObjectDisplayState.SIZE_OF_STRUCT) for i in range(dod.numberOfDisplayStateEntries)]
+        dods = [DO.DisplayObjectDisplayState(file_bytes, dod.offsetToDisplayStateList + i * DO.DisplayObjectDisplayState.SIZE_OF_STRUCT) for i in range(dod.numberOfDisplayStateEntries)]
         all_draws = []
-        # print(d)
 
-        texture_index = None
-        matrix_src = None
-        matrix_dst = None
         groups_arr = mesh_dict['groups'] = []
+        stateHelper = DS.DisplayStateSettingHelper(log_file)
         for dod_i, dod in enumerate(dods):
             dod.add_offset(dol_offset)
-            # print(dod)
             log_to_file(log_file, f"DisplayObjectDisplayState {i}.{dod_i}: {dod}")
 
-            if dod.stateID == 1: # Texture
-                h = hex(dod.setting)[2:]
-                if len(h) == 8 and h[2:4] == "11":
-                    texture_index = dod.setting & 0xff
-                    log_to_file(log_file, f"Loading Texture {texture_index}")
-            elif dod.stateID == 2: # Vertex Description
-
-                size_conversion = {
-                0:0,
-                2:1,
-                3:2
-                }
-                all_components = [(dod.setting >> (j * 2)) & 3 for j in range(13)]
-                all_sizes = [size_conversion[j] for j in all_components]
-                comps = {
-                    "vector_size": sum(all_sizes),
-                    "pos_size": all_sizes[1],
-                    "pos_offset": sum(all_sizes[:1]),
-                    "norm_size": all_sizes[2],
-                    "norm_offset": sum(all_sizes[:2]),
-                    "uv_size": all_sizes[5],
-                    "uv_offset": sum(all_sizes[:5]),
-                }
-                log_to_file(log_file, f"Vertex Description for Descriptor {i}.{dod_i}: {comps}")
-
-
-            elif dod.stateID == 3: # Matrix Load
-                matrix_src = dod.setting >> 16
-                matrix_dst = dod.setting & 0xffff
-                log_to_file(log_file, f"Matrix Load: Source {matrix_src}, Destination {matrix_dst}")
-
-            else:
-                raise ValueError(f"Unknown Display Call: {dod.stateID}")
+            stateHelper.setSetting(dod.stateID, dod.setting)
 
             if(dod.offsetToPrimitiveList != 0):
-                tris = parse_indices(file_bytes[dod.offsetToPrimitiveList:][:dod.byteLengthPrimitiveList], **comps)
+                tris = parse_indices(file_bytes[dod.offsetToPrimitiveList:][:dod.byteLengthPrimitiveList], stateHelper.getComponents())
                 # these_tris.extend(tris)
-                all_draws.append((tris, texture_index, [f"Using Texture {texture_index}", f"Using Matrix {matrix_src}, {matrix_dst}", f"Display Object {dod_i}"]))
+                all_draws.append((tris, stateHelper.getTextureIndex(), 
+                    [f"Using Texture {stateHelper.getTextureIndex()}", 
+                    f"Using Matrix {stateHelper.getSrcMtxIndex()}, {stateHelper.getDestMtxIndex()}",
+                    f"Display Object {dod_i}"]))
                 log_to_file(log_file, f"Primitive List for Descriptor {i}.{dod_i}: {tris}")
                 group_dict = dict()
                 groups_arr.append(group_dict)
-                group_dict['textureIndex'] = texture_index
-                group_dict['matrixSrc'] = matrix_src
-                group_dict['matrixDst'] = matrix_dst
+                group_dict['textureIndex'] = stateHelper.getTextureIndex(0)
+                group_dict['matrixSrc'] = stateHelper.getSrcMtxIndex()
+                group_dict['matrixDst'] = stateHelper.getDestMtxIndex()
                 tris_list = group_dict['triangles'] = []
                 for face in tris:
                     tri_dict = dict()
@@ -203,7 +166,7 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
                             point_dict['normal'] = point.normal_coordinate.ind
 
         # Write to Obj
-        coord_group = OBJGroup(
+        coord_group = OBJ.OBJGroup(
             positions=poss,
             textures=tex_coords,
             normals=norms,
@@ -211,13 +174,13 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             comments=[]
             )
 
-        draw_groups = [OBJGroup(positions=[], textures=[], normals=[], faces=gg[0], mtl=f"mssbMtl.{gg[1]}" if gg[1] != None else None, name=f"group{obj_part}", comments=gg[2]) for obj_part, gg in enumerate(all_draws)]
+        draw_groups = [OBJ.OBJGroup(positions=[], textures=[], normals=[], faces=gg[0], mtl=f"mssbMtl.{gg[1]}" if gg[1] != None else None, name=f"group{obj_part}", comments=gg[2]) for obj_part, gg in enumerate(all_draws)]
 
         draw_groups = [coord_group] + draw_groups
         # assert False
 
         mtl_file = join(mtl_header, "mtl.mtl")
-        obj_file = OBJFile(
+        obj_file = OBJ.OBJFile(
             groups=draw_groups, 
             mtl_file=mtl_file
             )
@@ -297,14 +260,14 @@ def parse_strip(l: list, cls=None) -> list:
     else:
         return [cls(*x) for x in to_return]
 
-def parse_indices(b: bytes, **kwargs) -> list[OBJFace]:
-    vector_size = kwargs["vector_size"]
-    pos_size = kwargs["pos_size"]
-    pos_offset = kwargs["pos_offset"]
-    norm_size = kwargs["norm_size"]
-    norm_offset = kwargs["norm_offset"]
-    uv_size = kwargs["uv_size"]
-    uv_offset = kwargs["uv_offset"]
+def parse_indices(b: bytes, components) -> list[OBJ.OBJFace]:
+    vector_size = components["vector_size"]
+    pos_size = components["pos_size"]
+    pos_offset = components["pos_offset"]
+    norm_size = components["norm_size"]
+    norm_offset = components["norm_offset"]
+    uv_size = components["uv_size"][0]
+    uv_offset = components["uv_offset"][0]
     offset = 0
 
     faces_to_return = []
@@ -326,9 +289,8 @@ def parse_indices(b: bytes, **kwargs) -> list[OBJFace]:
             assert(command & 0x7 == 0)
             count = int.from_bytes(b[offset:][:2], 'big')
             offset += 2
-            for i in range(count):
+            for _ in range(count):
                 v = b[offset:][:vector_size]
-                vertex_parts = []
                 if pos_size > 0:
                     pos = int.from_bytes(v[pos_offset:][:pos_size], 'big')
                 else:
@@ -344,10 +306,10 @@ def parse_indices(b: bytes, **kwargs) -> list[OBJFace]:
                 else:
                     uv = None
 
-                new_tris.append(OBJIndices(
-                    position_coordinate=OBJIndex(pos),
-                    normal_coordinate=OBJIndex(norm),
-                    texture_coordinate=OBJIndex(uv)
+                new_tris.append(OBJ.OBJIndices(
+                    position_coordinate=OBJ.OBJIndex(pos),
+                    normal_coordinate=OBJ.OBJIndex(norm),
+                    texture_coordinate=OBJ.OBJIndex(uv)
                 ))
                 offset += vector_size
         else:
@@ -381,7 +343,7 @@ def parse_indices(b: bytes, **kwargs) -> list[OBJFace]:
 
         faces_to_return.extend(new_tris)
     
-    return [OBJFace(face) for face in faces_to_return]
+    return [OBJ.OBJFace(face) for face in faces_to_return]
 
 if __name__ == "__main__":
     main()

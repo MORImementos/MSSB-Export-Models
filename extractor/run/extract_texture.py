@@ -1,8 +1,9 @@
 from os.path import dirname, join, basename
 
-from helper_texture import *
-from helper_mssb_data import get_parts_of_file, ensure_dir, write_text
-
+from helpers import get_parts_of_file, ensure_dir, write_text
+# from structs.texture import *
+from structs import TPL_COLOR, TEX, TPL
+from constants.textures import VALID_IMAGE_FORMATS
 try:
     from PIL.Image import Image
 except:
@@ -17,7 +18,7 @@ def main():
     # file_part = int(input("Input file part: "))
     # output_folder = dirname(input_file)
     file_part = 5
-    file_name = "07137000"
+    file_name = "06CFD000"
 
     # export_images(input_file, output_folder, file_part)
     with open(f"extractor/data/test/{file_name}.dat", "rb") as f:
@@ -30,32 +31,32 @@ def main():
         except: continue
     # write_images(bytes, f"extractor/data/test/07207800/{file_part}/", file_part)
 
-def get_all_tpl_headers(b:bytes) -> list[TPLTextureHeader]:
+def get_all_tpl_headers(b:bytes) -> list[TPL.TPLTextureHeader]:
     image_count = int.from_bytes(b[:2], 'big', signed=False)
 
     image_headers = []
 
     for i in range(image_count):
-        image_headers.append(TPLTextureHeader.from_bytes(b, 4 + TPLTextureHeader.SIZE_OF_STRUCT * i))
+        image_headers.append(TPL.TPLTextureHeader.from_bytes(b, 4 + TPL.TPLTextureHeader.SIZE_OF_STRUCT * i))
     return image_headers
 
 def unimplemented_format(err:str):
     raise ValueError(f"Parsing texture format \"{err}\" is not implemented.")
 
 TEXTURE_PARSE_FUNCTIONS = {
-    "I4":     (lambda a, b: TPLFileI4.parse_source(a, b)),
+    "I4":     (lambda a, b: TPL.TPLFileI4.parse_source(a, b)),
     # "I8":     (lambda a, b: unimplemented_format("I8")),
-    "I8":     (lambda a, b: TPLFileI8.parse_source(a, b)),
+    "I8":     (lambda a, b: TPL.TPLFileI8.parse_source(a, b)),
     # "IA4":    (lambda a, b: unimplemented_format("IA4")),
-    "IA4":    (lambda a, b: TPLFileIA4.parse_source(a, b)),
-    "IA8":    (lambda a, b: TPLFileIA8.parse_sourse(a, b)),
+    "IA4":    (lambda a, b: TPL.TPLFileIA4.parse_source(a, b)),
+    "IA8":    (lambda a, b: TPL.TPLFileIA8.parse_sourse(a, b)),
     "RGB565": (lambda a, b: unimplemented_format("RGB565")),
     "RGB5A3": (lambda a, b: unimplemented_format("RGB5A3")),
     "RGBA32": (lambda a, b: unimplemented_format("RGBA32")),
-    "C4":     (lambda a, b: TPLFileC4.parse_source(a, b)),
-    "C8":     (lambda a, b: TPLFileC8.parse_source(a, b)),
+    "C4":     (lambda a, b: TPL.TPLFileC4.parse_source(a, b)),
+    "C8":     (lambda a, b: TPL.TPLFileC8.parse_source(a, b)),
     "C14X2":  (lambda a, b: unimplemented_format("C14X2")),
-    "CMPR":   (lambda a, b: TPLFileCMPR.parse_source(a, b)),
+    "CMPR":   (lambda a, b: TPL.TPLFileCMPR.parse_source(a, b)),
 }
 
 def write_images(filename:str, output_dir:str, part_of_file:int, write_mtl:bool = False, image_header:str = "") -> bool:
@@ -83,10 +84,10 @@ def write_images(filename:str, output_dir:str, part_of_file:int, write_mtl:bool 
         return False
 
 
-def export_images(file_bytes:bytearray, part_of_file:int) -> ExtractedTextureCollection:
+def export_images(file_bytes:bytearray, part_of_file:int) -> TEX.ExtractedTextureCollection:
     parts = get_parts_of_file(file_bytes)
     if part_of_file >= len(parts):
-        return ExtractedTextureCollection([])
+        return TEX.ExtractedTextureCollection([])
 
     if part_of_file < 0:
         lines = file_bytes[::]
@@ -95,15 +96,21 @@ def export_images(file_bytes:bytearray, part_of_file:int) -> ExtractedTextureCol
     
     headers = get_all_tpl_headers(lines)
     images = []
-    for header in headers:
+    for i, header in enumerate(headers):
+        # print(f'{i}: {header.palette_format}')
         if not header.is_valid():
+        #     print('--------------')
+        #     print(header.format)
+        #     print(header.width)
+        #     print(header.height)
+            images.append(TEX.ExtractedTexture(TEX.dummyImage(), -1))
             continue
-        print(VALID_IMAGE_FORMATS[header.format])
-        
+        # print(f"{VALID_IMAGE_FORMATS[header.format]} @ {hex(header.address)}")
+
         image = TEXTURE_PARSE_FUNCTIONS[VALID_IMAGE_FORMATS[header.format]](lines, header)
-        
-        images.append(ExtractedTexture(image, VALID_IMAGE_FORMATS[header.format]))
-    return ExtractedTextureCollection(images)
+
+        images.append(TEX.ExtractedTexture(image, VALID_IMAGE_FORMATS[header.format]))
+    return TEX.ExtractedTextureCollection(images)
 
 def write_mtl_file(file_name:str, mtls:list[tuple[str, str]], cut_at_base_folder:bool=True) -> bool:
     mtl_file = ""
@@ -114,7 +121,7 @@ def write_mtl_file(file_name:str, mtls:list[tuple[str, str]], cut_at_base_folder
             path = path.replace("\\", "\\\\")
 
         mtl_file += f"newmtl {name}\n"
-        mtl_file += f"map_kd {path}\n"
+        mtl_file += f"map_Kd {path}\n"
         mtl_file += "\n"
 
     write_text(mtl_file, file_name)

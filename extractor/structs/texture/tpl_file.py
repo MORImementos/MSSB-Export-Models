@@ -2,77 +2,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from PIL.Image import Image, new as new_Image
 from os.path import join
-from helper_mssb_data import *
+from helpers import dirname, ensure_dir, write_text
+from structs import DBI
 import struct
 
-CMPR_BLOCK_SIZE = 8
-
-VALID_IMAGE_FORMATS = {
-    0: "I4",
-    1: "I8",
-    2: "IA4",
-    3: "IA8",
-    4: "RGB565",
-    5: "RGB5A3",
-    6: "RGBA32",
-    8: "C4",
-    9: "C8",
-    0xa: "C14X2",
-    0xe: "CMPR"
-}
-
-REV_VALID_IMAGE_FORMATS = {v: k for k, v in VALID_IMAGE_FORMATS.items()}
+from constants.textures import VALID_IMAGE_FORMATS, REV_VALID_IMAGE_FORMATS, CMPR_BLOCK_SIZE
+from structs.texture import tpl_color
+from helpers.textures import expand_to_8_bits
 
 @dataclass
-class ExtractedTexture:
-    img:Image
-    img_format:str
-
-class ExtractedTextureCollection:
-    def __init__(self, images : list[ExtractedTexture]) -> None:
-        self.images = images
-
-    def generate_outputs(self, path:str=None) -> list[tuple[str, ExtractedTexture]]:
-        outputs = []
-        for index, tex in enumerate(self.images):
-            file_name = f"{index}.png"
-            if path != None:
-                file_name = join(path, file_name)
-            outputs.append((file_name, tex))
-        return outputs
-
-    def write_images_to_folder(self, path:str = None):
-        for file_name, tex in self.generate_outputs(path):
-            ensure_dir(dirname(file_name))
-            tex.img.save(file_name)
-
-    def write_mtl_file(self, output_path:str, img_file_path:str):
-        mtl_contents = self.get_mtl_file(img_file_path)
-        write_text(mtl_contents, output_path)
-
-    def get_mtl_file(self, img_files_path:str = None):
-        output = ""
-        for i, (path, tex) in enumerate(self.generate_outputs(img_files_path)):
-            path:str
-
-            path = path.replace("\\", "\\\\")
-
-            output += (f"newmtl mssbMtl.{i}\n")
-            output += (f"map_kd {path}\n")
-            output += (f"# Height: {tex.img.height}, Width: {tex.img.width}, Format: {tex.img_format}\n")
-            output += ("\n")
-    
-        return output
-
-@dataclass
-class TPLTextureHeader(DataBytesInterpreter):
+class TPLTextureHeader(DBI):
     address:int
     height:int
     width:int
     format:int
     palette:int
     palette_format:int
-    DATA_FORMAT:str = '>IIHHxxxxxxxxIxxBxxxxx'
+    DATA_FORMAT:str = '>IIHHxxxxxxxxxxxBxxBxxxxx'
 
     def __str__(self) -> str:
         t = ""
@@ -109,66 +55,7 @@ class TPLTextureHeader(DataBytesInterpreter):
             palette_format=this_palette_format
         )
 
-class TPLColor:
-    @classmethod
-    def from_bytes(cls, b:bytes):
-        cls.from_int(int.from_bytes(b, 'big'))
-        return cls
 
-    @classmethod
-    def to_bytes(cls) -> bytes:
-        return cls.to_int().to_bytes(length=cls.SIZE, byteorder='big')
-    
-    @classmethod
-    def has_alpha(cls) -> bool:
-        return len(cls.data) == 4
-
-class TPLColorIA8(TPLColor):
-    SIZE = 1
-
-    @classmethod
-    def from_int(cls, i: int):
-        a = i & 0xFF
-        i = i >> 8
-        # return i | (i << 8) | (i << 16) | (a << 24);
-        
-        cls.data = (i, i, i, a)
-        
-        return cls
-    
-    @classmethod
-    def to_int(cls) -> int:
-        return (cls.data[3] << 8) | (cls.data[0])
-
-class TPLColorR5G6B5(TPLColor):
-    SIZE = 2
-
-    @classmethod
-    def from_int(cls, i:int):
-        cls.data = ((i >> 11) << 3, ((i >> 5) & 0b111111) << 2, (i & 0b11111) << 3)
-        return cls
-    
-    @classmethod
-    def to_int(cls) -> int:
-        return ((cls.data[0] >> 3) << 11) | ((cls.data[1] >> 2) << 5) | (cls.data[2] >> 3)
-
-class TPLColorRGB5A3(TPLColor):
-    SIZE = 2
-    
-    @classmethod
-    def from_int(cls, a:int):
-        if a & 0x8000 != 0: # default 255 alpha
-            cls.data = (((a >> 10) & 0b11111) << 3, ((a >> 5) & 0b11111) << 3, (a & 0b11111) << 3, 0xff)
-        else: # has alpha bits
-            cls.data = ((a >> 8) & 0b1111) << 4, ((a >> 4) & 0b1111) << 4, (a & 0b1111) << 4, (((a >> 12) & 0b1111) << 5)
-        return cls
-
-    @classmethod
-    def to_int(cls) -> int:
-        if cls.data[3] == 255:
-            return 0x8000 | cls.data[0] << 7 | cls.data[1] << 2 | cls.data[2] >> 3
-        else:
-            return cls.data[0] << 4 | cls.data[1] | cls.data[2] >> 4 | cls.data[3] << 7
 
 
 # works as far as extracting image, doesn't seem to work converting color palette yet
@@ -209,7 +96,7 @@ class TPLFileI4:
         #     pixel_format = "RGB"
         # elif header.palette_format == 2: # RGB5A3
         
-        func = TPLColorRGB5A3
+        func = tpl_color.TPLColorRGB5A3
         pixel_format = "RGBA"
         # else:
         #     assert(False)
@@ -245,7 +132,7 @@ class TPLFileI8:
         if header.palette:
             palette_data = source[header.palette:header.palette + 0x200]
             palette = [int.from_bytes(palette_data[i * 2:i * 2 + 2], 'big') for i in range(0x100)]
-            func = TPLColorRGB5A3
+            func = tpl_color.TPLColorRGB5A3
             palette = [func.from_int(x).data for x in palette]
         else:
             palette = None
@@ -357,18 +244,20 @@ class TPLFileC4:
         palette = [int.from_bytes(byt[i*2:i*2+2], 'big') for i in range(0x10)]
 
         if header.palette_format == 0:
-            func = TPLColorIA8
+            func = tpl_color.TPLColorIA8
             pixel_format = "RGBA"
         elif header.palette_format == 1:
-            func = TPLColorR5G6B5
+            func = tpl_color.TPLColorR5G6B5
             pixel_format = "RGB"
         elif header.palette_format == 2:
-            func = TPLColorRGB5A3
+            func = tpl_color.TPLColorRGB5A3
             pixel_format = "RGBA"
         else:
             assert(False)
 
+        # print(', '.join(hex(x) for x in palette))
         palette = [func.from_int(x).data for x in palette]
+        # print(', '.join(['(' + ','.join(str(y) for y in x) + ')' for x in palette]))
 
         image = new_Image(pixel_format, (width, height))
 
@@ -410,7 +299,7 @@ class TPLFileC8:
         #     func = TPLColorIA8
         #     pixel_format = "RGB"
         # elif header.palette_format == 2: # RGB5A3
-        func = TPLColorRGB5A3
+        func = tpl_color.TPLColorRGB5A3
         pixel_format = "RGBA"
         # else:
         #     assert(False)
@@ -466,8 +355,8 @@ class TPLFileCMPR:
 
         dxt_block = src[offset:offset+8]
 
-        c1 = TPLColorR5G6B5().from_bytes(dxt_block[0:2]).data
-        c2 = TPLColorR5G6B5().from_bytes(dxt_block[2:4]).data
+        c1 = tpl_color.TPLColorR5G6B5().from_bytes(dxt_block[0:2]).data
+        c2 = tpl_color.TPLColorR5G6B5().from_bytes(dxt_block[2:4]).data
 
         ss = s & 3
         tt = t & 3
@@ -493,69 +382,3 @@ class TPLFileCMPR:
             return ((c1[0] + c2[0]) // 2, (c1[1] + c2[1]) // 2, (c1[2] + c2[2]) // 2, 0)
         else:
             return (0,0,0,0)
-
-# Helper functions implemented from https://github.com/encounter/aurora/blob/main/lib/gfx/texture_convert.cpp
-
-def expand_to_8_bits(val: int, num_bits: int) -> int:
-    if num_bits == 4:
-        return (val << 4) | val
-    if num_bits == 3:
-        return (val << 5) | (val << 2) | (val >> 1)
-    else:
-        return (val << (8 - num_bits)) | (val >> ((num_bits * 2) - 8))
-
-    
-def S3TCBlend(a: int, b: int):
-    return ((((a << 1) + a) + ((b << 2) + b)) >> 3)
-
-def halfBlend(a: int, b: int):
-    return (a + b) >> 1
-
-def computeMippedTexelCount(width: int, height: int, mips: int):
-    ret = width * height
-    for _ in range(mips - 1):
-        if width > 1:
-            width //= 2
-        if height > 1:
-            height //= 2
-        ret += width * height
-    return ret
-
-def computeMippedBlockCountDXT1(width: int, height: int, mips: int):
-    width //= 4
-    height //= 4
-    ret = width * height
-    for _ in range(mips - 1):
-        if width > 1:
-            width //= 2
-        if height > 1:
-            height //= 2
-        ret += width * height
-    return ret
-
-def bswap16(val: int) -> int:
-    # swap endianness
-    return ((val & 0xFF) << 8) | ((val >> 8) & 0xFF)
-
-    
-@dataclass
-class RGBA8:
-    # each is uint8_t
-    r: int
-    g: int
-    b: int
-    a: int
-
-class DXT1Block:
-    color1: int # u16
-    color2: int # u16
-    lines: list # u8[4]
-
-
-# from dolphin
-
-def make_RGBA(r: int, g: int, b: int, a: int):
-    return (a << 24) | (b << 16) | (g << 8) | r
-
-def DXTBlend(v1: int, v2: int):
-    return ((v1 * 3 + v2 * 5) >> 3)

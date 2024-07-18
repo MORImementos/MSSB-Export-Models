@@ -159,3 +159,4 @@ extractor/outputs/*
 *.dat
 *.dol
 my_notes/notes.txt
+.vscode

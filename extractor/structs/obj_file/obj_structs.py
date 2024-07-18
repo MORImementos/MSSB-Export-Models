@@ -1,17 +1,19 @@
 from dataclasses import dataclass
 import typing
-from helper_vector import *
+from structs import Vector2, Vector3
+from helpers.rotation import sqtTransform
+from constants.c3 import SECTION_TYPES
 from os.path import join, exists
 from os import mkdir, listdir, rename
-from helper_c3 import SECTION_TYPES
 import numpy as np
 import shutil
-from helper_rotation import sqtTransform
 
 # need to check the Z for position/normal, might be oriented wrong direction
 class PositionVector(Vector3):
     def __str__(self) -> str:
-        return f"v {self.X} {-self.Y} {self.Z}" 
+        return f"v {-self.X} {-self.Y} {self.Z}" 
+    def __repr__(self):
+        return f"{self.X}, {self.Y}, {self.Z}"
 
 class TextureVector(Vector2):
     def __str__(self) -> str:
@@ -19,7 +21,7 @@ class TextureVector(Vector2):
 
 class NormalVector(Vector3):
     def __str__(self) -> str:
-        return f"vn {self.X} {-self.Y} {self.Z}" 
+        return f"vn {-self.X} {-self.Y} {self.Z}" 
     
 @dataclass
 class OBJIndex:
@@ -175,7 +177,10 @@ def obj_export(output_folder:str, section_data:dict) -> None:
                     if file[-4:] == '.mtl':
                         shutil.move(join(existing_mtl_path, file), join(this_output_folder, f'{group_name}.mtl'))
                     else:
-                        shutil.move(join(existing_mtl_path, file), this_output_folder)
+                        try:
+                            shutil.move(join(existing_mtl_path, file), this_output_folder)
+                        except shutil.Error:
+                            continue
                 # with open(existing_mtl_path, 'r') as f:
                 #     existing_mtl_data = f.readlines()
                 # mtl_path = join(this_output_folder, f'{group_name}.mtl')
@@ -194,17 +199,21 @@ def transformMeshByBones(data:dict) -> None:
     # Also, this will eventually need to respect the bones' inheritanceFlags
     # Stadiums (or at least Mario Stadium) have a flat bone tree
     transformByGEOID = {}
-    for bone in data[SECTION_TYPES.ACT]["bones"]:
-        geo_id = bone['GEOFileID']
-        s = np.array(bone['orientation']['scale'])
-        q = bone['orientation']['quaternion']
-        t = bone['orientation']['translation']
-        transform = sqtTransform(s, q, t)
-        transformByGEOID[geo_id] = transform
-    for GEOID, mesh in enumerate(data[SECTION_TYPES.GEO]['meshes']):
-        transform = transformByGEOID[GEOID]
-        transform_normals = np.linalg.inv(transform).transpose()
-        # This seems too verbose but idk how to use numpy correctly
-        mesh['positionCoords'] = [np.array(([*x, 1] @ transform))[0,:3] for x in mesh['positionCoords']]
-        mesh['normals'] = [np.array(([*x, 1] @ transform_normals))[0,:3] for x in mesh['normals']]
-        pass
+    if data.get(SECTION_TYPES.ACT) is not None and "bones" in data[SECTION_TYPES.ACT]:
+
+        for bone in data[SECTION_TYPES.ACT]["bones"]:
+            geo_id = bone['GEOFileID']
+            s = np.array(bone['orientation']['scale'])
+            q = bone['orientation']['quaternion']
+            t = bone['orientation']['translation']
+            transform = sqtTransform(s, q, t)
+            transformByGEOID[geo_id] = transform
+        for GEOID, mesh in enumerate(data[SECTION_TYPES.GEO]['meshes']):
+            transform = transformByGEOID[GEOID]
+            transform_normals = np.linalg.inv(transform).transpose()
+            # This seems too verbose but idk how to use numpy correctly
+            mesh['positionCoords'] = [np.array(([*x, 1] @ transform))[0,:3] for x in mesh['positionCoords']]
+            mesh['normals'] = [np.array(([*x, 1] @ transform_normals))[0,:3] for x in mesh['normals']]
+            pass
+    else:
+        print("ACT section or bones not found.")

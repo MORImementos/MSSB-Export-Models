@@ -1,6 +1,6 @@
 from os.path import dirname, join, exists
-from helper_collision import *
-from helper_mssb_data import get_parts_of_file
+from structs import COL
+from helpers import get_parts_of_file, save_to_json
 import os
 from pathlib import Path
 
@@ -32,7 +32,7 @@ def export_collision(file_bytes: bytearray, output_directory: str, start_offset:
         os.remove(log_file)
     
     try:
-        collision = Collision(file_bytes, start_offset)
+        collision = COL.Collision(file_bytes, start_offset)
         save_to_json(collision.to_dict(), Path(output_directory) / f"{hex(start_offset)}.json")
         print(f"    Successfully processed collision data at offset {hex(start_offset)}")    
     except Exception as e:

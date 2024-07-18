@@ -1,9 +1,12 @@
 from os.path import exists, dirname, join
 from os import makedirs
-from helper_mssb_data import DataEntry, FileCache, FingerPrintSearcher, MultipleRanges, ArchiveDecompressor, ensure_dir, write_text, write_bytes
+from helpers import ensure_dir, write_text, write_bytes
+from structs.compression import DataEntry, FileCache, FingerPrintSearcher, MultipleRanges, ArchiveCompressor, ArchiveDecompressor
+
 import json, progressbar
 from struct import unpack
-from helper_file_system import *
+from helpers.file_system import *
+
 
 file_cache = FileCache()
 

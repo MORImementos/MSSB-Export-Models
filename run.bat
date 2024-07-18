@@ -1,4 +1,5 @@
 python -m pip install -r requirements.txt
 cd extractor
-python main.py
+rd /s /q "outputs/US/Referenced files/Mario Stadium"
+python refactor_main.py
 pause

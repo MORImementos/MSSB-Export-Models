@@ -1,41 +1,8 @@
+from structs import DBI, Vec
+from constants.collision import *
 from struct import calcsize
-from enum import Enum
-import json
-from helper_mssb_data import DataBytesInterpreter
 
-def open_binary_get_bytes(file):
-    with open(file, "rb") as f:
-        return f.read()
-
-class StadiumTriangleCollectionType(Enum):
-    SINGLES = 0
-    STRIP = 1
-
-class StadiumTriangleType(Enum):
-    GRASS = 0x1
-    WALL = 0x2
-    OOB = 0x3
-    FOUL_LINE_MARKERS = 0x4
-    BACK = 0x5
-    DIRT = 0x6
-    PIT_WALL = 0x7
-    PIT = 0x8
-    ROUGH_TERRAIN = 0x9
-    WATER = 0xA
-    CHOMP_HAZARD = 0xB
-    FOUL = 0x80
-
-class Vec(DataBytesInterpreter):
-    DATA_FORMAT = ">fff"
-
-    def __init__(self, b: bytes, offset: int) -> None:
-        self.x, self.y, self.z = self.parse_bytes(b, offset)
-
-    def __repr__(self) -> str:
-        return f"\n    x: {self.x}\n    y: {self.y}\n    z: {self.z}\n"
-    def to_dict(self):
-        return {"X": self.x, "Y": self.y, "Z": self.z}
-class BoundingBox(DataBytesInterpreter):
+class BoundingBox(DBI):
     DATA_FORMAT = ">ffffff"
 
     def __init__(self, b: bytes, offset: int) -> None:
@@ -50,7 +17,8 @@ class BoundingBox(DataBytesInterpreter):
             "BoxCorner1": self.corner1.to_dict(),
             "BoxCorner2": self.corner2.to_dict()
         }
-class Triangle(DataBytesInterpreter):
+    
+class Triangle(DBI):
     DATA_FORMAT = ">fffHH"
 
     def __init__(self, b: bytes, offset: int) -> None:
@@ -58,6 +26,7 @@ class Triangle(DataBytesInterpreter):
 
     def __repr__(self) -> str:
         return f"\n\nTriangle:\n    x: {self.x}\n    y: {self.y}\n    z: {self.z}\n    triangleType: {self.triangleType}\n    pad: {self.pad}\n"
+    
     def to_dict(self):
         return {
             "CollisionType": self.triangleType,
@@ -68,8 +37,7 @@ class Triangle(DataBytesInterpreter):
             }
         }
     
-
-class TriangleGroup(DataBytesInterpreter):
+class TriangleGroup(DBI):
     DATA_FORMAT = ">HH"
 
     def __init__(self, b: bytes, offset: int) -> None:
@@ -94,8 +62,7 @@ class TriangleGroup(DataBytesInterpreter):
             "Points": [triangle.to_dict() for triangle in self.triangles]
         }
 
-
-class Collision(DataBytesInterpreter):
+class Collision(DBI):
     DATA_FORMAT = ">HHII"
 
     def __init__(self, b: bytes, offset: int) -> None:
@@ -152,12 +119,3 @@ class Collision(DataBytesInterpreter):
                 for collection in self.triangle_collections
             ]
         }
-
-def save_to_json(data, file_path):
-    with open(file_path, 'w') as json_file:
-        json.dump(data, json_file, indent=4)
-
-if __name__ == "__main__":
-    bytes = open_binary_get_bytes("extractor/data/test/06CFD000.dat")
-    col = Collision(bytes, 0x240)
-    save_to_json(col.to_dict(), r'E:\MSSB\MSSB-Export-Models\extractor\data\test\output2.json')

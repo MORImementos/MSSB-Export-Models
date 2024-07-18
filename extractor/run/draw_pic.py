@@ -1,6 +1,14 @@
 from PIL import Image
 import json, math
-from helper_mssb_data import DataEntry, MultipleRanges, dirname, ensure_dir
+import sys
+import os
+
+
+project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(project_dir)
+
+from helpers import ensure_dir, dirname
+from structs.compression import DataEntry, MultipleRanges
 import progressbar
 
 def draw_pic(zzzz_path:str, results_path:str, output_path="found.png"):
