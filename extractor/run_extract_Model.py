@@ -126,12 +126,24 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         log_to_file(log_file, f"Normals for Descriptor {i}: {norms}")
         mesh_dict['normals'] = [list(x) for x in norms]
 
+        doc = DisplayObjectColorHeader(file_bytes, dol.OffsetToColorData)
+        doc.add_offset(dol_offset)
+
+        colors = parse_array_values_color(
+            # 4 bytes per color max
+            file_bytes[doc.offsetToColorArray:][:(doc.numberOfColors * 4)],
+            doc.numberOfColors,
+            doc.format
+        )
+        mesh_dict['colors'] = [list(x) for x in colors]
+
         dod = DisplayObjectDisplayHeader(file_bytes, dol.OffsetToDisplayData)
         dod.add_offset(dol_offset)
         log_to_file(log_file, f"DisplayObjectDisplayHeader {i}: {dod}")
 
         dods = [DisplayObjectDisplayState(file_bytes, dod.offsetToDisplayStateList + i * DisplayObjectDisplayState.SIZE_OF_STRUCT) for i in range(dod.numberOfDisplayStateEntries)]
         all_draws = []
+        dod_ = dod
 
         groups_arr = mesh_dict['groups'] = []
         stateHelper = DisplayStateSettingHelper(log_file)
@@ -142,6 +154,11 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             stateHelper.setSetting(dod.stateID, dod.setting)
 
             if(dod.offsetToPrimitiveList != 0):
+                group_dict = dict()
+                group_dict['textureIndex'] = stateHelper.getTextureIndex(0)
+                if group_dict['textureIndex'] is None:
+                    continue
+                groups_arr.append(group_dict)
                 tris = parse_indices(file_bytes[dod.offsetToPrimitiveList:][:dod.byteLengthPrimitiveList], stateHelper.getComponents())
                 # these_tris.extend(tris)
                 all_draws.append((tris, stateHelper.getTextureIndex(), 
@@ -149,9 +166,6 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
                     f"Using Matrix {stateHelper.getSrcMtxIndex()}, {stateHelper.getDestMtxIndex()}",
                     f"Display Object {dod_i}"]))
                 log_to_file(log_file, f"Primitive List for Descriptor {i}.{dod_i}: {tris}")
-                group_dict = dict()
-                groups_arr.append(group_dict)
-                group_dict['textureIndex'] = stateHelper.getTextureIndex(0)
                 group_dict['matrixSrc'] = stateHelper.getSrcMtxIndex()
                 group_dict['matrixDst'] = stateHelper.getDestMtxIndex()
                 tris_list = group_dict['triangles'] = []
@@ -168,17 +182,20 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
                             point_dict['texture'] = point.texture_coordinate.ind
                         if point.normal_coordinate:
                             point_dict['normal'] = point.normal_coordinate.ind
+                        if point.color:
+                            point_dict['color'] = point.color.ind
 
         # Write to Obj
         coord_group = OBJGroup(
             positions=poss,
             textures=tex_coords,
             normals=norms,
+            colors=colors,
             faces=[],
             comments=[]
             )
 
-        draw_groups = [OBJGroup(positions=[], textures=[], normals=[], faces=gg[0], mtl=f"mssbMtl.{gg[1]}" if gg[1] != None else None, name=f"group{obj_part}", comments=gg[2]) for obj_part, gg in enumerate(all_draws)]
+        draw_groups = [OBJGroup(positions=[], textures=[], normals=[], colors = [], faces=gg[0], mtl=f"mssbMtl.{gg[1]}" if gg[1] != None else None, name=f"group{obj_part}", comments=gg[2]) for obj_part, gg in enumerate(all_draws)]
 
         draw_groups = [coord_group] + draw_groups
         # assert False
@@ -213,12 +230,40 @@ def parse_array_values(b:bytes, component_count:int, component_width:int, struct
             ii = int.from_bytes(these_b[i*component_width:][:component_width], 'big', signed=signed)
             f = float_from_fixedpoint(ii, fixed_point)
             c.append(f)
-        to_return.append(c)        
+        to_return.append(c)
         offset += struct_size
     if cls == None:
         return to_return
     else:
         return [cls(*x) for x in to_return]
+
+def parse_array_values_color(b:bytes, entry_count:int, format:int)->list:
+    to_return = []
+    if format >= 6 or format < 0:
+        raise ValueError(f'Color format {format} is invalid')
+    struct_size = [2, 3, 4, 2, 3, 4][format]
+    bits_per = [[5, 6, 5, 0],
+                 [8, 8, 8, 0],
+                 [8, 8, 8, 0],
+                 [4, 4, 4, 4],
+                 [6, 6, 6, 6],
+                 [8, 8, 8, 8]][format]    
+    for i in range(entry_count):
+        color = []
+        these_bytes = int.from_bytes(b[(i*struct_size):][:struct_size], 'big', signed=False)
+        shift = struct_size * 8
+        for j in range(4):
+            n = bits_per[j]
+            if n:
+                shift -= n
+                mask = (1 << n) - 1
+                val = (these_bytes >> shift) & mask
+                val = int(val * 255 / mask)
+                color.append(val)
+            else:
+                color.append(255)
+        to_return.append(ColorVector(*color))
+    return to_return
 
 def parse_quads(l: list, cls=None) -> list:
     to_return = []
@@ -270,6 +315,8 @@ def parse_indices(b: bytes, components) -> list[OBJFace]:
     pos_offset = components["pos_offset"]
     norm_size = components["norm_size"]
     norm_offset = components["norm_offset"]
+    color_size = components["color_size"][0]
+    color_offset = components["color_offset"][0]
     uv_size = components["uv_size"][0]
     uv_offset = components["uv_offset"][0]
     offset = 0
@@ -299,12 +346,17 @@ def parse_indices(b: bytes, components) -> list[OBJFace]:
                     pos = int.from_bytes(v[pos_offset:][:pos_size], 'big')
                 else:
                     pos = None
-                
+
                 if norm_size > 0:
                     norm = int.from_bytes(v[norm_offset:][:norm_size], 'big')
                 else:
                     norm = None
-                
+
+                if color_size > 0:
+                    color = int.from_bytes(v[color_offset:][:color_size], 'big')
+                else:
+                    color = None
+
                 if uv_size > 0:
                     uv = int.from_bytes(v[uv_offset:][:uv_size], 'big')
                 else:
@@ -313,6 +365,7 @@ def parse_indices(b: bytes, components) -> list[OBJFace]:
                 new_tris.append(OBJIndices(
                     position_coordinate=OBJIndex(pos),
                     normal_coordinate=OBJIndex(norm),
+                    color=OBJIndex(color),
                     texture_coordinate=OBJIndex(uv)
                 ))
                 offset += vector_size
