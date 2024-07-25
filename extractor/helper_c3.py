@@ -203,8 +203,6 @@ class DisplayObjectColorHeader(DataBytesInterpreter):
         = self.parse_bytes(b, offset)
         
         self.format = self.quantizeInfo >> 4
-        self.alpha = self.format > 2
-        self.componentSize = self.QUANTIZE_INFO[self.format]
 
     def add_offset(self, offset:int)->None:
         if self.offsetToColorArray != 0:
@@ -457,8 +455,12 @@ class DisplayStateSettingHelper():
     
     def getComponents(self):
         size_conversion = {
+            # NONE (0)
             0:0,
+            # DIRECT (1)
+            # INDEX8 (2)
             2:1,
+            # INDEX16 (3)
             3:2
         }
         all_components = [(self.VCDSetting.setting >> (j * 2)) & 3 for j in range(13)]
@@ -469,6 +471,8 @@ class DisplayStateSettingHelper():
             "pos_offset": sum(all_sizes[:1]),
             "norm_size": all_sizes[2],
             "norm_offset": sum(all_sizes[:2]),
+            "color_size": [all_sizes[i] for i in [3, 4]],
+            "color_offset": [sum(all_sizes[:i]) for i in [3, 4]],
             "uv_size": [all_sizes[i] for i in range(5, len(all_sizes))],
             "uv_offset": [sum(all_sizes[:i]) for i in range(5, len(all_sizes))],
         }

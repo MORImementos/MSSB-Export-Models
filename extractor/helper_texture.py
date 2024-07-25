@@ -343,8 +343,6 @@ class TPLFileC4:
         offset = base + (blkOff >> 1)
 
         val = ((src[offset]) >> rs) & 0xF
-        # print(val)
-        # val = (val << 4) & val
         return palette[val]
     
     @staticmethod

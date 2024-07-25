@@ -92,7 +92,7 @@ def export_images(file_bytes:bytearray, part_of_file:int) -> ExtractedTextureCol
         lines = file_bytes[::]
     else:
         lines = file_bytes[parts[part_of_file]:]
-    
+
     headers = get_all_tpl_headers(lines)
     images = []
     for i, header in enumerate(headers):
