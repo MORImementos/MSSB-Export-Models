@@ -9,6 +9,7 @@ import json, progressbar, traceback, os, shutil
 from run_draw_pic import draw_pic
 from helper_file_system import *
 from helper_c3 import SECTION_TYPES, SECTION_TEMPLATES
+from run_extract_Collision import export_collision
 
 def try_export_texture(b, new_out_folder, part) -> tuple[bool, str, dict]:
     try:
@@ -45,6 +46,16 @@ def try_export_actor(b, new_out_folder, part) -> tuple[bool, str, dict]:
 
 def try_export_dummy(b, new_out_folder, part) -> tuple[bool, str, dict]:
     return 0, '', None
+
+# def try_export_collision(b, new_out_folder, part) -> tuple[bool, str, dict]:
+#     try:
+#         output_text = ''
+#         out_dict = export_collision(b, new_out_folder, part)
+#         output_text += f"Part {part} interpreted as collision.\n"
+#         return 1, output_text, out_dict
+#     except:
+#         traceback.print_exc()
+#         return 0, '', None
 
 export_methods = {
     SECTION_TYPES.texture: try_export_texture,

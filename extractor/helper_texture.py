@@ -251,7 +251,7 @@ class TPLFileI8:
             palette = None
 
         pixel_format = "RGBA"
-        image = Image.new(pixel_format, (width, height))
+        image = new_Image(pixel_format, (width, height))
 
         for t in range(height):
             for s in range(width):
@@ -285,7 +285,7 @@ class TPLFileIA4:
         width, height = header.width, header.height
         image_data = source[header.address:header.address + (width * height)]
 
-        image = Image.new("RGBA", (width, height))
+        image = new_Image("RGBA", (width, height))
 
         for t in range(height):
             for s in range(width):
@@ -310,7 +310,7 @@ class TPLFileIA8:
         width, height = header.width, header.height
         image_data = source[header.address:header.address + (width * height * 2)]
 
-        image = Image.new("RGBA", (width, height))
+        image = new_Image("RGBA", (width, height))
 
         for t in range(height):
             for s in range(width):
