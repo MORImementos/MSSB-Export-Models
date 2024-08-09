@@ -326,7 +326,110 @@ class TPLFileRGB5A3:
     pass
 
 class TPLFileRGBA32:
-    pass
+    @staticmethod
+    def get_pixel(data: bytes, s: int, t: int, width: int):
+        index = (t * width + s) * 4
+        r = data[index]
+        g = data[index + 1]
+        b = data[index + 2]
+        a = data[index + 3]
+        return (r, g, b, a)
+
+    @staticmethod
+    def parse_source(source: bytes, header: TPLTextureHeader) -> Image.Image:
+        width, height = header.width, header.height
+
+        image_data = TPLFileRGBA32.build_rgba8_from_gcn(width, height, source[header.address:])
+        image = new_Image("RGBA", (width, height))
+
+        for t in range(height):
+            for s in range(width):
+                pixel = TPLFileRGBA32.get_pixel(image_data, s, t, width)
+                image.putpixel((s, t), pixel)
+
+        return image
+
+    @staticmethod
+    def build_rgba8_from_gcn(width, height, data: bytes) -> bytes:
+        mips = TPLFileRGBA32.calculate_mips(width, height)
+        texel_count = TPLFileRGBA32.compute_mipped_texel_count(width, height, mips)
+        buf = bytearray(texel_count * 4)  # Each pixel is 4 bytes (RGBA8)
+
+        w = width
+        h = height
+        offset = 0
+        mip_offset = 0  # Tracks the offset for each mip level
+
+        for mip in range(mips):
+            bwidth = (w + 3) // 4
+            bheight = (h + 3) // 4
+
+            for by in range(bheight):
+                base_y = by * 4
+
+                for bx in range(bwidth):
+                    base_x = bx * 4
+
+                    for y in range(4):
+                        if base_y + y >= h:
+                            continue
+
+                        # Handle the AR group
+                        for x in range(4):
+                            if base_x + x >= w:
+                                continue
+                            
+                            index = (base_y + y) * w + (base_x + x)
+                            buf[mip_offset + index * 4 + 3] = data[offset + x * 2]  # Alpha
+                            buf[mip_offset + index * 4] = data[offset + x * 2 + 1]  # Red
+
+                        offset += 8  # Move to the next row in AR group
+
+                    for y in range(4):
+                        if base_y + y >= h:
+                            continue
+
+                        # Handle the GB group
+                        for x in range(4):
+                            if base_x + x >= w:
+                                continue
+                            
+                            index = (base_y + y) * w + (base_x + x)
+                            buf[mip_offset + index * 4 + 1] = data[offset + x * 2]  # Green
+                            buf[mip_offset + index * 4 + 2] = data[offset + x * 2 + 1]  # Blue
+
+                        offset += 8  # Move to the next row in GB group
+
+            mip_offset += w * h * 4  # Move to the next mip level in the buffer
+            if w > 1:
+                w //= 2
+            if h > 1:
+                h //= 2
+
+        return buf
+
+    @staticmethod
+    def calculate_mips(width, height):
+        mips = 1
+        while width > 1 or height > 1:
+            mips += 1
+            if width > 1:
+                width //= 2
+            if height > 1:
+                height //= 2
+        return mips
+
+    @staticmethod
+    def compute_mipped_texel_count(width, height, mips):
+        texel_count = 0
+        for mip in range(mips):
+            texel_count += width * height
+            if width > 1:
+                width //= 2
+            if height > 1:
+                height //= 2
+        return texel_count
+
 
 class TPLFileC4:
     @staticmethod
@@ -403,18 +506,28 @@ class TPLFileC8:
         byt = source[header.palette:][:0x200]
         palette = [int.from_bytes(byt[i*2:i*2+2], 'big') for i in range(0x100)]
 
-        # if header.palette_format == 0: # RGB565
-        #     func = TPLColorR5G6B5
-        #     pixel_format = "RGBA"
-        # elif header.palette_format == 1: # IA8
-        #     func = TPLColorIA8
-        #     pixel_format = "RGB"
-        # elif header.palette_format == 2: # RGB5A3
-        func = TPLColorRGB5A3
-        pixel_format = "RGBA"
-        # else:
-        #     assert(False)
-
+        # # if header.palette_format == 0: # RGB565
+        # #     func = TPLColorR5G6B5
+        # #     pixel_format = "RGBA"
+        # # elif header.palette_format == 1: # IA8
+        # #     func = TPLColorIA8
+        # #     pixel_format = "RGB"
+        # # elif header.palette_format == 2: # RGB5A3
+        # func = TPLColorRGB5A3
+        # pixel_format = "RGBA"
+        # # else:
+        # #     assert(False)
+        if header.palette_format == 0: # RGB565
+                    func = TPLColorR5G6B5
+                    pixel_format = "RGBA"
+        elif header.palette_format == 1: # IA8
+            func = TPLColorIA8
+            pixel_format = "RGB"
+        elif header.palette_format == 2: # RGB5A3
+            func = TPLColorRGB5A3
+            pixel_format = "RGBA"
+        else:
+            assert(False)
         palette = [func.from_int(x).data for x in palette]
 
         image = new_Image(pixel_format, (width, height))
