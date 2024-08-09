@@ -49,8 +49,8 @@ TEXTURE_PARSE_FUNCTIONS = {
     # "IA4":    (lambda a, b: unimplemented_format("IA4")),
     "IA4":    (lambda a, b: TPLFileIA4.parse_source(a, b)),
     "IA8":    (lambda a, b: TPLFileIA8.parse_source(a, b)),
-    "RGB565": (lambda a, b: unimplemented_format("RGB565")),
-    "RGB5A3": (lambda a, b: unimplemented_format("RGB5A3")),
+    "RGB565": (lambda a, b: TPLFileRGB565.parse_source(a, b)),
+    "RGB5A3": (lambda a, b: TPLFileRGB5A3.parse_source(a, b)),
     "RGBA32": (lambda a, b: TPLFileRGBA32.parse_source(a, b)),
     "C4":     (lambda a, b: TPLFileC4.parse_source(a, b)),
     "C8":     (lambda a, b: TPLFileC8.parse_source(a, b)),
@@ -102,7 +102,7 @@ def export_images(file_bytes:bytearray, part_of_file:int) -> ExtractedTextureCol
         #     print(header.format)
         #     print(header.width)
         #     print(header.height)
-            images.append(ExtractedTexture(dummyImage(), -1))
+            # images.append(ExtractedTexture(dummyImage(), -1))
             continue
         # print(f"{VALID_IMAGE_FORMATS[header.format]} @ {hex(header.address)}")
 

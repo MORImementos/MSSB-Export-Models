@@ -320,10 +320,207 @@ class TPLFileIA8:
         return image
 
 class TPLFileRGB565:
-    pass
+    @staticmethod
+    def get_pixel(data: bytes, s: int, t: int, width: int):
+        index = (t * width + s) * 2
+        texel = struct.unpack('>H', data[index:index+2])[0]  # Read 16-bit value
+        r = expand_to_8_bits((texel >> 11) & 0x1F, 5)
+        g = expand_to_8_bits((texel >> 5) & 0x3F, 6)
+        b = expand_to_8_bits(texel & 0x1F, 5)
+        a = 0xFF
+        return (r, g, b, a)
+
+    @staticmethod
+    def parse_source(source: bytes, header: TPLTextureHeader) -> Image.Image:
+        width, height = header.width, header.height
+
+        image_data = TPLFileRGB565.build_rgb565_from_gcn(width, height, source[header.address:])
+        image = new_Image("RGBA", (width, height))
+
+        for t in range(height):
+            for s in range(width):
+                pixel = TPLFileRGB565.get_pixel(image_data, s, t, width)
+                image.putpixel((s, t), pixel)
+
+        return image
+
+    @staticmethod
+    def build_rgb565_from_gcn(width, height, data: bytes) -> bytes:
+        mips = TPLFileRGB565.calculate_mips(width, height)
+        texel_count = TPLFileRGB565.compute_mipped_texel_count(width, height, mips)
+        buf = bytearray(texel_count * 4)  # Each pixel is 4 bytes (RGBA8)
+
+        w = width
+        h = height
+        offset = 0
+        mip_offset = 0  # Tracks the offset for each mip level
+
+        for mip in range(mips):
+            bwidth = (w + 3) // 4
+            bheight = (h + 3) // 4
+
+            for by in range(bheight):
+                base_y = by * 4
+
+                for bx in range(bwidth):
+                    base_x = bx * 4
+
+                    for y in range(min(4, h)):
+                        if base_y + y >= h:
+                            continue
+
+                        for x in range(min(4, w)):
+                            if base_x + x >= w:
+                                continue
+
+                            index = (base_y + y) * w + (base_x + x)
+                            texel = struct.unpack('>H', data[offset:offset+2])[0]  # 16-bit value
+                            buf[mip_offset + index * 4] = expand_to_8_bits((texel >> 11) & 0x1F, 5)  # Red
+                            buf[mip_offset + index * 4 + 1] = expand_to_8_bits((texel >> 5) & 0x3F, 6)  # Green
+                            buf[mip_offset + index * 4 + 2] = expand_to_8_bits(texel & 0x1F, 5)  # Blue
+                            buf[mip_offset + index * 4 + 3] = 0xFF  # Alpha
+
+                            offset += 2
+
+            mip_offset += w * h * 4  # Move to the next mip level in the buffer
+            if w > 1:
+                w //= 2
+            if h > 1:
+                h //= 2
+
+        return buf
+
+    @staticmethod
+    def calculate_mips(width, height):
+        mips = 1
+        while width > 1 or height > 1:
+            mips += 1
+            if width > 1:
+                width //= 2
+            if height > 1:
+                height //= 2
+        return mips
+
+    @staticmethod
+    def compute_mipped_texel_count(width, height, mips):
+        texel_count = 0
+        for mip in range(mips):
+            texel_count += width * height
+            if width > 1:
+                width //= 2
+            if height > 1:
+                height //= 2
+        return texel_count
+
 
 class TPLFileRGB5A3:
-    pass
+    @staticmethod
+    def get_pixel(data: bytes, s: int, t: int, width: int):
+        index = (t * width + s) * 2
+        texel = struct.unpack('>H', data[index:index+2])[0]  # Read 16-bit value
+
+        if (texel & 0x8000) != 0:  # RGB555 with alpha = 1.0
+            r = expand_to_8_bits((texel >> 10) & 0x1F, 5)
+            g = expand_to_8_bits((texel >> 5) & 0x1F, 5)
+            b = expand_to_8_bits(texel & 0x1F, 5)
+            a = 0xFF
+        else:  # RGB444 with 3-bit alpha
+            r = expand_to_8_bits((texel >> 8) & 0xF, 4)
+            g = expand_to_8_bits((texel >> 4) & 0xF, 4)
+            b = expand_to_8_bits(texel & 0xF, 4)
+            a = expand_to_8_bits((texel >> 12) & 0x7, 3)
+
+        return (r, g, b, a)
+
+    @staticmethod
+    def parse_source(source: bytes, header: TPLTextureHeader) -> Image.Image:
+        width, height = header.width, header.height
+
+        image_data = TPLFileRGB5A3.build_rgb5a3_from_gcn(width, height, source[header.address:])
+        image = new_Image("RGBA", (width, height))
+
+        for t in range(height):
+            for s in range(width):
+                pixel = TPLFileRGB5A3.get_pixel(image_data, s, t, width)
+                image.putpixel((s, t), pixel)
+
+        return image
+
+    @staticmethod
+    def build_rgb5a3_from_gcn(width, height, data: bytes) -> bytes:
+        mips = TPLFileRGB5A3.calculate_mips(width, height)
+        texel_count = TPLFileRGB5A3.compute_mipped_texel_count(width, height, mips)
+        buf = bytearray(texel_count * 4)  # Each pixel is 4 bytes (RGBA8)
+
+        w = width
+        h = height
+        offset = 0
+        mip_offset = 0  # Tracks the offset for each mip level
+
+        for mip in range(mips):
+            bwidth = (w + 3) // 4
+            bheight = (h + 3) // 4
+
+            for by in range(bheight):
+                base_y = by * 4
+
+                for bx in range(bwidth):
+                    base_x = bx * 4
+
+                    for y in range(min(4, h)):
+                        if base_y + y >= h:
+                            continue
+
+                        for x in range(min(4, w)):
+                            if base_x + x >= w:
+                                continue
+
+                            index = (base_y + y) * w + (base_x + x)
+                            texel = struct.unpack('>H', data[offset:offset+2])[0]  # 16-bit value
+
+                            if (texel & 0x8000) != 0:
+                                buf[mip_offset + index * 4] = expand_to_8_bits((texel >> 10) & 0x1F, 5)  # Red
+                                buf[mip_offset + index * 4 + 1] = expand_to_8_bits((texel >> 5) & 0x1F, 5)  # Green
+                                buf[mip_offset + index * 4 + 2] = expand_to_8_bits(texel & 0x1F, 5)  # Blue
+                                buf[mip_offset + index * 4 + 3] = 0xFF  # Alpha
+                            else:
+                                buf[mip_offset + index * 4] = expand_to_8_bits((texel >> 8) & 0xF, 4)  # Red
+                                buf[mip_offset + index * 4 + 1] = expand_to_8_bits((texel >> 4) & 0xF, 4)  # Green
+                                buf[mip_offset + index * 4 + 2] = expand_to_8_bits(texel & 0xF, 4)  # Blue
+                                buf[mip_offset + index * 4 + 3] = expand_to_8_bits((texel >> 12) & 0x7, 3)  # Alpha
+
+                            offset += 2
+
+            mip_offset += w * h * 4  # Move to the next mip level in the buffer
+            if w > 1:
+                w //= 2
+            if h > 1:
+                h //= 2
+
+        return buf
+
+    @staticmethod
+    def calculate_mips(width, height):
+        mips = 1
+        while width > 1 or height > 1:
+            mips += 1
+            if width > 1:
+                width //= 2
+            if height > 1:
+                height //= 2
+        return mips
+
+    @staticmethod
+    def compute_mipped_texel_count(width, height, mips):
+        texel_count = 0
+        for mip in range(mips):
+            texel_count += width * height
+            if width > 1:
+                width //= 2
+            if height > 1:
+                height //= 2
+        return texel_count
+
 
 class TPLFileRGBA32:
     @staticmethod
