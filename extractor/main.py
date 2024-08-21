@@ -47,6 +47,17 @@ def try_export_actor(b, new_out_folder, part) -> tuple[bool, str, dict]:
 def try_export_dummy(b, new_out_folder, part) -> tuple[bool, str, dict]:
     return 0, '', None
 
+def try_export_collision(b, new_out_folder, part) -> tuple[bool, str, dict]:
+    try:
+        output_text = ''
+        out_dict = export_collision(b, new_out_folder, part, True)
+        output_text += f"Part {part} interpreted as collision.\n"
+        return 1, output_text, out_dict
+    except:
+        traceback.print_exc()
+        return 0, '', None
+
+
 # def try_export_collision(b, new_out_folder, part) -> tuple[bool, str, dict]:
 #     try:
 #         output_text = ''
@@ -61,7 +72,7 @@ export_methods = {
     SECTION_TYPES.texture: try_export_texture,
     SECTION_TYPES.GEO: try_export_model,
     SECTION_TYPES.ACT: try_export_actor,
-    SECTION_TYPES.collision: try_export_dummy
+    SECTION_TYPES.collision: try_export_collision
 }
 
 def interpret_bytes(b:bytearray, output_folder:str, format:str):

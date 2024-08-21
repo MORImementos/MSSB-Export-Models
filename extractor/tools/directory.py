@@ -92,7 +92,12 @@ def save_json_file(json_path, data):
         json.dump(data, file, indent=4)
 
 if __name__ == "__main__":
-    check_filenames(US)
+    check_filenames(US, REFERENCED_FILES)
+    check_filenames(US, RAW_FILES)
+    check_filenames(US, UNREFERENCED_FILES)
+    check_filenames(US, ADGC_FORMS)
+
+
 
 
 # todo: add file type (referenced / unreferenced etc to allow for naming any/all)

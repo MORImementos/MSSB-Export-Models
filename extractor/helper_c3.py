@@ -28,6 +28,14 @@ SECTION_TEMPLATES:dict[str, dict[int, int]] = {
         'backdrop': {
             SECTION_TYPES.ACT: 1,
             SECTION_TYPES.GEO: 4
+        },
+        'other': {
+            SECTION_TYPES.ACT: 6,
+            SECTION_TYPES.ACT: 7,
+            SECTION_TYPES.GEO: 8,
+            SECTION_TYPES.GEO: 9,
+            SECTION_TYPES.texture: 10,
+            SECTION_TYPES.collision: 11
         }
     }
 }
@@ -491,7 +499,9 @@ class DisplayStateSettingHelper():
             self.VCDSetting.from_setting(setting)
             log_to_file(self.log_file, f"Vertex Description: {hex(self.VCDSetting.setting)}")
         else:
-            raise ValueError(f"Unknown Display Call: {stateID}")
+            pass
+
+            # raise ValueError(f"Unknown Display Call: {stateID}")
 
 
 class DSTree(DataBytesInterpreter):

@@ -228,18 +228,68 @@
         "Name": "First Found Bro(B)"
     },
     {
-        "Location": "06CFD000",
+        "Location": "6CFD000",
         "Name": "Mario Stadium",
         "Format": "Stadium"
     },
     {
-        "Location": "06DC4000",
+        "Location": "6DC4000",
         "Name": "Mario Stadium 2",
         "Format": "Stadium"
     },
     {
-        "Location": "07207800",
+        "Location": "7207800",
         "Name": "Yoshi Park",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "73A1000",
+        "Name": "UnkStad",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "72D6800",
+        "Name": "UnkStad2",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "75FD000",
+        "Name": "UnkStad3",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "06E7A800",
+        "Name": "UnkStad4",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "7137000",
+        "Name": "UnkStad5",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "6FDE800",
+        "Name": "UnkStad6",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "7093800",
+        "Name": "UnkStad7",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "7559800",
+        "Name": "UnkStad8",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "748E800",
+        "Name": "UnkStad9",
+        "Format": "Stadium"
+    },
+    {
+        "Location": "6F20000",
+        "Name": "UnkStad10",
         "Format": "Stadium"
     }
 ]

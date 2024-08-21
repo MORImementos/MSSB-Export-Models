@@ -26,6 +26,7 @@ class StadiumTriangleType(Enum):
     FOUL = 0x80
 
 class Vec(DataBytesInterpreter):
+
     DATA_FORMAT = ">fff"
 
     def __init__(self, b: bytes, offset: int) -> None:
@@ -33,8 +34,11 @@ class Vec(DataBytesInterpreter):
 
     def __repr__(self) -> str:
         return f"\n    x: {self.x}\n    y: {self.y}\n    z: {self.z}\n"
+    
     def to_dict(self):
         return {"X": self.x, "Y": self.y, "Z": self.z}
+    
+    
 class BoundingBox(DataBytesInterpreter):
     DATA_FORMAT = ">ffffff"
 

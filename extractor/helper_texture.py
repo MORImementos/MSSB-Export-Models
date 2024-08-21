@@ -35,7 +35,7 @@ class ExtractedTextureCollection:
     def generate_outputs(self, path:str=None) -> list[tuple[str, ExtractedTexture]]:
         outputs = []
         for index, tex in enumerate(self.images):
-            file_name = f"{index}.png"
+            file_name = f"{index}_{tex.img_format}.png"
             if path != None:
                 file_name = join(path, file_name)
             outputs.append((file_name, tex))
@@ -665,6 +665,17 @@ class TPLFileC4:
             pixel_format = "RGBA"
         else:
             assert(False)
+        # if header.palette_format == 0: # RGB565
+        #     func = TPLColorR5G6B5
+        #     pixel_format = "RGBA"
+        # elif header.palette_format == 1: # IA8
+        #     func = TPLColorIA8
+        #     pixel_format = "RGB"
+        # elif header.palette_format == 2: # RGB5A3
+        #     func = TPLColorRGB5A3
+        #     pixel_format = "RGBA"
+        # else:
+        #     assert(False)
 
         # print(', '.join(hex(x) for x in palette))
         palette = [func.from_int(x).data for x in palette]
