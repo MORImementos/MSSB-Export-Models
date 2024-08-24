@@ -680,7 +680,7 @@ class CTRLSRTControl(DataBytesInterpreter):
         else:
             return Vector3(*quaternion_to_euler(self.quaternionRotation[3], *self.quaternionRotation[:3]))
 
-    def getQuaternionRotation(self) -> Vector3:
+    def getQuaternionRotation(self) -> Vector4:
         if self.usesEulerRotation:
             # Not going to add euler -> quaternion unless it ends up being necessary
             assert False
