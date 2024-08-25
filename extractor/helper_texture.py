@@ -35,7 +35,8 @@ class ExtractedTextureCollection:
     def generate_outputs(self, path:str=None) -> list[tuple[str, ExtractedTexture]]:
         outputs = []
         for index, tex in enumerate(self.images):
-            file_name = f"{index}_{tex.img_format}.png"
+            # file_name = f"{index}_{tex.img_format}.png"
+            file_name = f"{index}.png"
             if path != None:
                 file_name = join(path, file_name)
             outputs.append((file_name, tex))

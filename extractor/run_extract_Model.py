@@ -75,6 +75,8 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         log_to_file(log_file, f"Positions for Descriptor {i}: {poss}")
 
         positionCoords = [list(x) for x in poss]
+        if len(positionCoords) == 0:
+            positionCoords = None
 
         doc = DisplayObjectColorHeader(file_bytes, dol.OffsetToColorData)
         doc.add_offset(dol_offset)
@@ -104,6 +106,8 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         log_to_file(log_file, f"Texture coordinates for Descriptor {i}: {tex_coords}")
 
         texCoords = [list(x) for x in tex_coords]
+        if len(texCoords) == 0:
+            texCoords = None
 
         doli = DisplayObjectLightingHeader(file_bytes, dol.OffsetToLightingData)
         doli.add_offset(dol_offset)
@@ -120,6 +124,8 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             )
         log_to_file(log_file, f"Normals for Descriptor {i}: {norms}")
         normalCoords = [list(x) for x in norms]
+        if len(normalCoords) == 0:
+            normalCoords = None
 
         doc = DisplayObjectColorHeader(file_bytes, dol.OffsetToColorData)
         doc.add_offset(dol_offset)
@@ -131,6 +137,8 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             doc.format
         )
         meshColors = [list(x) for x in colors]
+        if len(meshColors) == 0:
+            meshColors = None
 
         dod = DisplayObjectDisplayHeader(file_bytes, dol.OffsetToDisplayData)
         dod.add_offset(dol_offset)

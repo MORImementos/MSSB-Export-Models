@@ -1,6 +1,7 @@
 from helper_c3 import SECTION_TYPES
 from helper_obj_file import PositionVector, NormalVector, ColorVector, TextureVector
 from helper_vector import Vector3, Vector4
+from helper_rotation import sqtTransform
 import numpy as np
 
 class C3ExportGroup():
@@ -90,3 +91,27 @@ class C3CollisionSection(C3Section):
     def __init__(self) -> None:
         super().__init__(SECTION_TYPES.collision)
 #-- end collision data --#
+
+def transformMeshByBones(data:C3Export) -> None:
+    # This is not correct
+    # At the time of writing this, the skin file is not being parsed
+    # We're getting stadiums working, which aren't skinned so can be implemented using only the GEO file ID
+    # Also, this will eventually need to respect the bones' inheritanceFlags
+    # Stadiums (or at least Mario Stadium) have a flat bone tree
+    transformByGEOID = {}
+    bone:ACTBone
+    for bone in data.sections[SECTION_TYPES.ACT].bones:
+        geo_id = bone.GEOFileID
+        s = np.array(bone.orientation.scale)
+        q = bone.orientation.quaternion
+        t = bone.orientation.translation
+        transform = sqtTransform(s, q, t)
+        transformByGEOID[geo_id] = transform
+    mesh:GEOMesh
+    for GEOID, mesh in enumerate(data.sections[SECTION_TYPES.GEO].meshes):
+        transform = transformByGEOID[GEOID]
+        transform_normals = np.linalg.inv(transform).transpose()
+        # This seems too verbose but idk how to use numpy correctly
+        mesh.positionList = [np.array(([*x, 1] @ transform))[0,:3] for x in mesh.positionList]
+        if mesh.normalList:
+            mesh.normalList = [np.array(([*x, 1] @ transform_normals))[0,:3] for x in mesh.normalList]

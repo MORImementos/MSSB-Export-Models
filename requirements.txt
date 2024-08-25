@@ -1,3 +1,4 @@
 pillow
 progressbar2
 numpy
+x3d

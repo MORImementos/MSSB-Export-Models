@@ -7,7 +7,6 @@ from helper_c3 import SECTION_TYPES
 from helper_c3_export import *
 import numpy as np
 import shutil
-from helper_rotation import sqtTransform
 
 @dataclass
 class OBJIndex:
@@ -42,10 +41,10 @@ class OBJFace:
 
 @dataclass
 class OBJGroup:
-    positions: list[PositionVector]
-    textures: list[TextureVector]
-    normals: list[NormalVector]
-    colors: list[ColorVector]
+    positions: list[Vector3]
+    textures: list[Vector3]
+    normals: list[Vector3]
+    colors: list[Vector3]
 
     faces: list[OBJFace]
     comments:list[str]
@@ -195,26 +194,3 @@ def obj_export(output_folder:str, section_data:C3ExportGroup) -> None:
                 #             newline = line.replace('map_kd ', 'map_kd ' + f'part {mtl_section}/').strip() + '\n'
                 #             print(newline)
                 #         f.write(newline)
-
-def transformMeshByBones(data:C3Export) -> None:
-    # This is not correct
-    # At the time of writing this, the skin file is not being parsed
-    # We're getting stadiums working, which aren't skinned so can be implemented using only the GEO file ID
-    # Also, this will eventually need to respect the bones' inheritanceFlags
-    # Stadiums (or at least Mario Stadium) have a flat bone tree
-    transformByGEOID = {}
-    bone:ACTBone
-    for bone in data.sections[SECTION_TYPES.ACT].bones:
-        geo_id = bone.GEOFileID
-        s = np.array(bone.orientation.scale)
-        q = bone.orientation.quaternion
-        t = bone.orientation.translation
-        transform = sqtTransform(s, q, t)
-        transformByGEOID[geo_id] = transform
-    mesh:GEOMesh
-    for GEOID, mesh in enumerate(data.sections[SECTION_TYPES.GEO].meshes):
-        transform = transformByGEOID[GEOID]
-        transform_normals = np.linalg.inv(transform).transpose()
-        # This seems too verbose but idk how to use numpy correctly
-        mesh.positionList = [np.array(([*x, 1] @ transform))[0,:3] for x in mesh.positionList]
-        mesh.normalList = [np.array(([*x, 1] @ transform_normals))[0,:3] for x in mesh.normalList]

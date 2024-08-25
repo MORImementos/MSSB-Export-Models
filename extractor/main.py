@@ -11,6 +11,7 @@ from helper_file_system import *
 from helper_c3 import SECTION_TYPES, SECTION_TEMPLATES
 from helper_c3_export import *
 from run_extract_Collision import export_collision
+from helper_x3d import x3d_export
 
 def try_export_texture(b, new_out_folder, part) -> tuple[bool, str, dict]:
     try:
@@ -136,7 +137,8 @@ def interpret_bytes(b:bytearray, output_folder:str, format:str):
         write_text(output_text + "No output types found.\n", join(output_folder, "notes.txt"))
 
     if section_template is not None:
-        obj_export(output_folder, export_groups)
+        # obj_export(output_folder, export_groups)
+        x3d_export(output_folder, export_groups)
 
 def interpret_US():
     print('Looking at US files...')
