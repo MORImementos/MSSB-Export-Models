@@ -9,7 +9,9 @@ import json, progressbar, traceback, os, shutil
 from run_draw_pic import draw_pic
 from helper_file_system import *
 from helper_c3 import SECTION_TYPES, SECTION_TEMPLATES
+from helper_c3_export import *
 from run_extract_Collision import export_collision
+from helper_x3d import x3d_export
 
 def try_export_texture(b, new_out_folder, part) -> tuple[bool, str, dict]:
     try:
@@ -19,8 +21,8 @@ def try_export_texture(b, new_out_folder, part) -> tuple[bool, str, dict]:
         output_text += f"Part {part} interpreted as textures.\n"
         base_images.write_images_to_folder(new_out_folder)
         base_images.write_mtl_file(join(new_out_folder, 'mtl.mtl'), "")
-        out_dict = {"part": part}
-        return 1, output_text, out_dict
+        section_data = C3TextureSection(part)
+        return 1, output_text, section_data
     except:
         traceback.print_exc()
         return 0, '', None
@@ -28,9 +30,9 @@ def try_export_texture(b, new_out_folder, part) -> tuple[bool, str, dict]:
 def try_export_model(b, new_out_folder, part) -> tuple[bool, str, dict]:
     try:
         output_text = ''
-        out_dict = export_model(b, new_out_folder, part)
+        section_data = export_model(b, new_out_folder, part)
         output_text += f"Part {part} interpreted as model.\n"
-        return 1, output_text, out_dict
+        return 1, output_text, section_data
     except:
         traceback.print_exc()
         return 0, '', None
@@ -38,10 +40,11 @@ def try_export_model(b, new_out_folder, part) -> tuple[bool, str, dict]:
 def try_export_actor(b, new_out_folder, part) -> tuple[bool, str, dict]:
     try:
         output_text = ''
-        out_dict = export_actor(b, new_out_folder, part)
+        section_data = export_actor(b, new_out_folder, part)
         output_text += f"Part {part} interpreted as actor.\n"
-        return 1, output_text, out_dict
+        return 1, output_text, section_data
     except:
+        traceback.print_exc()
         return 0, '', None
 
 def try_export_dummy(b, new_out_folder, part) -> tuple[bool, str, dict]:
@@ -50,9 +53,10 @@ def try_export_dummy(b, new_out_folder, part) -> tuple[bool, str, dict]:
 def try_export_collision(b, new_out_folder, part) -> tuple[bool, str, dict]:
     try:
         output_text = ''
-        out_dict = export_collision(b, new_out_folder, part, True)
+        export_collision(b, new_out_folder, 0)
+        section_data = C3CollisionSection()
         output_text += f"Part {part} interpreted as collision.\n"
-        return 1, output_text, out_dict
+        return 1, output_text, section_data
     except:
         traceback.print_exc()
         return 0, '', None
@@ -86,13 +90,13 @@ def interpret_bytes(b:bytearray, output_folder:str, format:str):
 
     any_outputs = False
     section_template = SECTION_TEMPLATES.get(format, None)
-    section_data = None
+    export_groups = None
     if section_template is not None:
-        section_data = {}
-        for group in section_template:
-            section_data[group] = {}
-            for s_type in section_template[group]:
-                section_data[group][s_type] = None
+        export_groups = C3ExportGroup()
+        for group_name in section_template:
+            exportObj = C3Export(group_name)
+            export_groups.exports[group_name] = exportObj
+
     # interpret the parts of the file
     if len(parts_of_file) > 0 and parts_of_file[0] == 80_92_000: # base address is a c3 file
         parts_of_file = []
@@ -103,6 +107,8 @@ def interpret_bytes(b:bytearray, output_folder:str, format:str):
         new_out_folder = join(output_folder, f"part {part}")
         if not os.path.exists(new_out_folder):
             os.mkdir(new_out_folder)
+
+        this_group = None
 
         if section_template is None:
             possible_section_types = list(range(SECTION_TYPES.type_count))
@@ -115,12 +121,12 @@ def interpret_bytes(b:bytearray, output_folder:str, format:str):
                         this_group = group
 
         for s_type in possible_section_types:
-            success, output_str, data_dict = export_methods[s_type](b, new_out_folder, part)
+            success, output_str, data = export_methods[s_type](b, new_out_folder, part)
             if success:
                 any_outputs = any_outputs_in_this_part = True
                 output_text += output_str
-                if section_data is not None:
-                    section_data[this_group][s_type] = data_dict
+                if this_group is not None:
+                    export_groups.exports[this_group].sections[s_type] = data
 
         if not any_outputs_in_this_part:
             shutil.rmtree(new_out_folder)
@@ -130,8 +136,9 @@ def interpret_bytes(b:bytearray, output_folder:str, format:str):
     else:
         write_text(output_text + "No output types found.\n", join(output_folder, "notes.txt"))
 
-    if section_data is not None:
-        obj_export(output_folder, section_data)
+    if section_template is not None:
+        # obj_export(output_folder, export_groups)
+        x3d_export(output_folder, export_groups)
 
 def interpret_US():
     print('Looking at US files...')

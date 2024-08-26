@@ -30,7 +30,7 @@ def export_collision(file_bytes: bytearray, output_directory: str, start_offset:
     log_file = join(output_directory, f"collision_export_log_{hex(start_offset)}.txt")
     if os.path.exists(log_file):
         os.remove(log_file)
-    
+
     try:
         collision = Collision(file_bytes, start_offset)
         save_to_json(collision.to_dict(), Path(output_directory) / f"{hex(start_offset)}.json")

@@ -3,6 +3,7 @@ from helper_vector import *
 from helper_obj_file import *
 from helper_c3 import *
 from helper_mssb_data import *
+from helper_c3_export import *
 
 from helper_mssb_data import get_parts_of_file, float_from_fixedpoint
 import os, json
@@ -28,8 +29,6 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
 
     parts_of_file = get_parts_of_file(file_bytes)
 
-    json_dict = dict()
-
     base_gpl_address = parts_of_file[part_of_file]
     geo_header = GeoPaletteHeader(file_bytes, base_gpl_address)
     log_to_file(log_file, f"GeoPaletteHeader: {geo_header}")
@@ -38,9 +37,7 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
 
     descriptors:list[GeoDescriptor] = []
 
-    json_dict['numberOfMeshes'] = geo_header.numberOfGeometryDescriptors
-
-    mesh_arr = json_dict['meshes'] = []
+    mesh_arr = []
 
     for i in range(geo_header.numberOfGeometryDescriptors):
         gd_offset = geo_header.offsetToGeometryDescriptorArray + i * GeoDescriptor.SIZE_OF_STRUCT
@@ -54,15 +51,13 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
 
         descriptors.append(d)
 
-        mesh_dict = dict()
-        mesh_arr.append(mesh_dict)
-        mesh_dict['name'] = d.name
+        mesh_name = d.name
 
         dol_offset = d.offsetToDisplayObject
         dol = DisplayObjectLayout(file_bytes, dol_offset)
         dol.add_offset(dol_offset)
         log_to_file(log_file, f"DisplayObjectLayout {i}: {dol}")
-        copyAttributesToDict(dol, mesh_dict, ['numberOfTextures'])
+        numberOfTextures = dol.numberOfTextures
 
         dop = DisplayObjectPositionHeader(file_bytes, dol.OffsetToPositionData)
         dop.add_offset(dol_offset)
@@ -79,7 +74,9 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             )
         log_to_file(log_file, f"Positions for Descriptor {i}: {poss}")
 
-        mesh_dict['positionCoords'] = [list(x) for x in poss]
+        positionCoords = [list(x) for x in poss]
+        if len(positionCoords) == 0:
+            positionCoords = None
 
         doc = DisplayObjectColorHeader(file_bytes, dol.OffsetToColorData)
         doc.add_offset(dol_offset)
@@ -108,7 +105,9 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
                     )
         log_to_file(log_file, f"Texture coordinates for Descriptor {i}: {tex_coords}")
 
-        mesh_dict['textureCoords'] = [list(x) for x in tex_coords]
+        texCoords = [list(x) for x in tex_coords]
+        if len(texCoords) == 0:
+            texCoords = None
 
         doli = DisplayObjectLightingHeader(file_bytes, dol.OffsetToLightingData)
         doli.add_offset(dol_offset)
@@ -124,7 +123,9 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             NormalVector
             )
         log_to_file(log_file, f"Normals for Descriptor {i}: {norms}")
-        mesh_dict['normals'] = [list(x) for x in norms]
+        normalCoords = [list(x) for x in norms]
+        if len(normalCoords) == 0:
+            normalCoords = None
 
         doc = DisplayObjectColorHeader(file_bytes, dol.OffsetToColorData)
         doc.add_offset(dol_offset)
@@ -135,7 +136,9 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             doc.numberOfColors,
             doc.format
         )
-        mesh_dict['colors'] = [list(x) for x in colors]
+        meshColors = [list(x) for x in colors]
+        if len(meshColors) == 0:
+            meshColors = None
 
         dod = DisplayObjectDisplayHeader(file_bytes, dol.OffsetToDisplayData)
         dod.add_offset(dol_offset)
@@ -143,10 +146,9 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
 
         dods = [DisplayObjectDisplayState(file_bytes, dod.offsetToDisplayStateList + i * DisplayObjectDisplayState.SIZE_OF_STRUCT) for i in range(dod.numberOfDisplayStateEntries)]
         all_draws = []
-        dod_ = dod
 
-        groups_arr = mesh_dict['groups'] = []
-        stateHelper = DisplayStateSettingHelper(log_file)
+        drawGroups:list[GEODrawGroup] = []
+        stateHelper:DisplayStateSettingHelper = DisplayStateSettingHelper(log_file)
         for dod_i, dod in enumerate(dods):
             dod.add_offset(dol_offset)
             log_to_file(log_file, f"DisplayObjectDisplayState {i}.{dod_i}: {dod}")
@@ -154,36 +156,36 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
             stateHelper.setSetting(dod.stateID, dod.setting)
 
             if(dod.offsetToPrimitiveList != 0):
-                group_dict = dict()
-                group_dict['textureIndex'] = stateHelper.getTextureIndex(0)
-                if group_dict['textureIndex'] is None:
-                    continue
-                groups_arr.append(group_dict)
+                textureInds = {}
+                for layerInd in stateHelper.textureSettings:
+                    textureInds[layerInd] = stateHelper.textureSettings[layerInd].textureIndex
                 tris = parse_indices(file_bytes[dod.offsetToPrimitiveList:][:dod.byteLengthPrimitiveList], stateHelper.getComponents())
-                # these_tris.extend(tris)
                 all_draws.append((tris, stateHelper.getTextureIndex(), 
                     [f"Using Texture {stateHelper.getTextureIndex()}", 
                     f"Using Matrix {stateHelper.getSrcMtxIndex()}, {stateHelper.getDestMtxIndex()}",
                     f"Display Object {dod_i}"]))
                 log_to_file(log_file, f"Primitive List for Descriptor {i}.{dod_i}: {tris}")
-                group_dict['matrixSrc'] = stateHelper.getSrcMtxIndex()
-                group_dict['matrixDst'] = stateHelper.getDestMtxIndex()
-                tris_list = group_dict['triangles'] = []
+                faceList = []
                 for face in tris:
-                    tri_dict = dict()
-                    tris_list.append(tri_dict)
-                    point_list = tri_dict['points'] = []
+                    vertexList = []
                     for point in face.obj_indices:
-                        point_dict = dict()
-                        point_list.append(point_dict)
+                        vertex = GEOMeshVertex(None, None, None, None)
                         if point.position_coordinate:
-                            point_dict['position'] = point.position_coordinate.ind
+                            vertex.positionInd = point.position_coordinate.ind
                         if point.texture_coordinate:
-                            point_dict['texture'] = point.texture_coordinate.ind
+                            vertex.texCoordInd = point.texture_coordinate.ind
                         if point.normal_coordinate:
-                            point_dict['normal'] = point.normal_coordinate.ind
+                            vertex.normalInd = point.normal_coordinate.ind
                         if point.color:
-                            point_dict['color'] = point.color.ind
+                            vertex.colorInd = point.color.ind
+                        vertexList.append(vertex)
+                    faceObj = GEOMeshFace(vertexList)
+                    faceList.append(faceObj)
+                drawGroup = GEODrawGroup(textureInds, faceList)
+                drawGroups.append(drawGroup)
+        
+        mesh_obj = GEOMesh(mesh_name, numberOfTextures, positionCoords, texCoords, normalCoords, meshColors, drawGroups)
+        mesh_arr.append(mesh_obj)
 
         # Write to Obj
         coord_group = OBJGroup(
@@ -212,13 +214,13 @@ def export_model(file_bytes:bytearray, output_directory:str, part_of_file = 2, m
         write_text(str(obj_file), join(output_directory, d.name + ".obj"))
         log_to_file(log_file, f"Exported {d.name}.obj to {output_directory}")
 
-    json_file = join(output_directory, "model.json")
-    if os.path.exists(json_file):
-        os.remove(json_file)
-    with open(json_file, 'w') as f:
-        f.write(json.dumps(json_dict, indent=4))
-    
-    return json_dict
+    # json_file = join(output_directory, "model.json")
+    # if os.path.exists(json_file):
+    #     os.remove(json_file)
+    # with open(json_file, 'w') as f:
+    #     f.write(json.dumps(json_dict, indent=4))
+    modelObj = C3GEOSection(mesh_arr)
+    return modelObj
 
 def parse_array_values(b:bytes, component_count:int, component_width:int, struct_size:int, fixed_point:int, signed:bool, cls=None)->list:
     to_return = []

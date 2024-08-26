@@ -50,3 +50,19 @@ class Vector2:
     def __getitem__(self, key):
         return [self.X, self.Y][key]
 
+# need to check the Z for position/normal, might be oriented wrong direction
+class PositionVector(Vector3):
+    def __str__(self) -> str:
+        return f"v {-self.X} {-self.Y} {self.Z}" 
+
+class TextureVector(Vector2):
+    def __str__(self) -> str:
+        return f"vt {self.U} {-self.V}" 
+
+class NormalVector(Vector3):
+    def __str__(self) -> str:
+        return f"vn {-self.X} {-self.Y} {self.Z}"
+
+class ColorVector(Vector4):
+    def __str__(self) -> str:
+        return f'# vc {self.X} {self.Y} {self.Z} {self.W}'
